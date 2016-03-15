@@ -27,10 +27,9 @@ export default class Recommendation extends Component {
   };
 
   static propTypes = {
-    recommendation: React.PropTypes.object,
-    willFocus: React.PropTypes.func,
+    recommendation: React.PropTypes.object.isRequired,
+    onRecommendationAction: React.PropTypes.func,
     onLayout: React.PropTypes.func,
-    onToggleRecommendation: React.PropTypes.func,
   };
 
   state = {
@@ -66,10 +65,10 @@ export default class Recommendation extends Component {
     });
   }
 
-  toggleRecommendation() {
-    let userId = this.context.user.id;
-    let recId = this.props.recommendation.id;
-    let db = this.context.database;
+  toggleSavedRecommendation() {
+    let userId = this.context.user.id,
+        recId = this.props.recommendation.id,
+        db = this.context.database;
 
     let isUserSaved = db.isUserSavedRecommendation(userId, recId);
 
@@ -78,7 +77,7 @@ export default class Recommendation extends Component {
     else
       db.saveUserRecommendation(userId, recId);
 
-    this.props.onToggleRecommendation(recId);
+    this.props.onRecommendationAction && this.props.onRecommendationAction();
   }
 
   toggleLayout() {
@@ -176,7 +175,7 @@ export default class Recommendation extends Component {
           source={{uri: place.photo.uri}}>
 
           <View style={styles.overlay}>
-            <TouchableOpacity onPress={this.toggleRecommendation.bind(this)} style={styles.topButton}>
+            <TouchableOpacity onPress={this.toggleSavedRecommendation.bind(this)} style={styles.topButton}>
               <Icon name={isUserSaved ? 'favorite' : 'favorite-border'} size={30} style={styles.topButtonIcon}></Icon>
             </TouchableOpacity>
             <TouchableOpacity onPress={this.toggleLayout.bind(this)} style={styles.topButton}>

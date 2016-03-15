@@ -1,6 +1,15 @@
 'use strict';
 
-import React, {Component, StyleSheet, ScrollView, View, Text, TouchableWithoutFeedback} from 'react-native';
+import React, {
+  Component, 
+  StyleSheet,
+  ListView, 
+  ScrollView, 
+  View, 
+  Text, 
+  TouchableWithoutFeedback
+} from 'react-native';
+
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
 import Button from '../button';
@@ -13,25 +22,31 @@ export default class RecommendationsScene extends Component {
 
   static contextTypes = {
     theme: React.PropTypes.object,
+    user: React.PropTypes.object,
+    database: React.PropTypes.object,
   };
 
   static propTypes = {
-    nextRecommendation: React.PropTypes.object,
-    saveRecommendation: React.PropTypes.func.isRequired,
-    dismissRecommendation: React.PropTypes.func.isRequired,
-    onToggleRecommendation: React.PropTypes.func,
+    recommendations: React.PropTypes.arrayOf(React.PropTypes.object),
+    onRecommendationAction: React.PropTypes.func,
     isLoadingMore: React.PropTypes.bool, // Will prob be replaced with call to this.props.relay.hasOptimisticUpdate
   };
 
   static defaultProps = {
-    nextRecommendations: null,
+    recommendations: [],
   };
 
   state = {
-    currentRecommendation: null,
     hasOverflow: false,
     isChildDetailed: false,
+    datasource: new ListView.DataSource({
+      rowHasChanged: this.rowHasChanged.bind(this),
+    }),
   };
+
+  rowHasChanged(r1, r2) {
+    return r1 !== r2;
+  }
 
   attributes = {
     height: 0,
@@ -77,88 +92,57 @@ export default class RecommendationsScene extends Component {
     this.refs.scroll.scrollTo({x: 0, y:0, animated: doAnimate || true});
   }
 
-  componentWillMount() {
-    this.syncRec();
+  didSwipeLeft(recommendationID) {
+    this.context.database.dismissUserRecommendation(this.context.user.id, recommendationID);
+    this.props.onRecommendationAction && this.props.onRecommendationAction();
   }
 
-  componentWillReceiveProps(nextProps) {
-    if (!this.state.currentRecommendation)
-      this.syncRec(nextProps);
+  didSwipeRight(recommendationID) {
+    this.didSwipeLeft(recommendationID);
   }
 
-  didSwipeLeft() {
-    this.props.dismissRecommendation(this.state.currentRecommendation.id);
-    this.syncRec();
-  }
+  renderRow(recommendation, sectionID, rowID) {
 
-  didSwipeRight() {
-    this.props.saveRecommendation(this.state.currentRecommendation.id);
-    this.syncRec();
-  }
+    let swipeableProps = {
+      rightSwipeEdge: <View/>,
+      leftSwipeEdge: <View/>,
+      onSwipeRight: this.didSwipeRight.bind(this, recommendation.id),
+      onSwipeLeft: this.didSwipeLeft.bind(this, recommendation.id),
+    };
 
-  // Intentional deviation from React pattern b/c we need manual control
-  syncRec(nextProps) {
-    let props = nextProps || this.props;
-    this.setState({currentRecommendation: props.nextRecommendation, hasOverflow: false, isChildDetailed: false});
+    return (
+      <Swipeable 
+          // onLayout={this.handleLayout.bind(this)} 
+          style={styles.flexFull}
+          {...swipeableProps} >
+
+          <Card>
+            <Recommendation 
+              recommendation={recommendation}
+              onRecommendationAction={this.props.onRecommendationAction}/>
+          </Card>
+      </Swipeable>
+    );
+
   }
 
   render() {
-    let currentRecommendation = this.state.currentRecommendation;
+    let emptyState = 
+      <Text style={styles.emptyText}>No recommendations available.</Text>;
 
-    let leftSwipeEdge = <Icon name="not-interested" style={[styles.edgeLabel, this.context.theme.negativeAction]} />;
-    let rightSwipeEdge = <Icon name="favorite" style={[styles.edgeLabel, this.context.theme.positiveAction]} />;
-
-    let emptyState = this.props.isLoadingMore ?
-      <Text style={styles.emptyText}>Loading recommendations...</Text> :
-      <Text style={styles.emptyText}>No recommendations available.</Text> ;
-
-    let swipeableProps = {
-      onSwipeRight: this.didSwipeRight.bind(this),
-      rightSwipeEdge,
-      onSwipeLeft: this.didSwipeLeft.bind(this),
-      leftSwipeEdge,
-    };
-
-    let shouldScroll = this.state.isChildDetailed && this.state.hasOverflow;
+    // let shouldScroll = this.state.isChildDetailed && this.state.hasOverflow;
 
     return (
-      !currentRecommendation ?
+      !this.props.recommendations.length ?
       /* Empty view */
       <View style={[styles.flexFull, styles.empty]}>{emptyState}</View> :
 
       /* Default view */
-      <View style={[styles.flexFull, this.props.style]}>
-        <TouchableWithoutFeedback onPress={this.scrollToTop.bind(this)} >
-          <View style={[this.context.theme.headerView]}>
-            <Text style={[styles.headingText, this.context.theme.headerText]}>
-              <Text style={{fontWeight: 'bold'}}>Gustave: </Text>
-              {this.state.isChildDetailed ? '"Here are the details..."' : '"I think you\'ll like..."'}
-            </Text>
-          </View>
-        </TouchableWithoutFeedback>
-        <Swipeable 
-            onLayout={this.handleLayout.bind(this)} 
-            style={styles.flexFull}
-            {...swipeableProps} >
-
-          <ScrollView ref="scroll"
-            scrollEnabled={this.state.hasOverflow} 
-            contentContainerStyle={!shouldScroll && styles.flexFull}
-            showsVerticalScrollIndicator={false}>
-
-            <Card key={currentRecommendation.id} style={!shouldScroll && styles.flexFull}>
-              <Recommendation 
-                willToggle={this.handleToggle.bind(this)}
-                onLayout={this.handleChildLayout.bind(this)} 
-                recommendation={currentRecommendation}
-                onToggleRecommendation={this.props.onToggleRecommendation}/>
-            </Card>
-
-          </ScrollView>
-
-        </Swipeable>
-      </View>
-
+      <ListView 
+          style={[styles.flexFull, this.props.style]}
+          dataSource={this.state.datasource.cloneWithRows(this.props.recommendations)}
+          renderRow={this.renderRow.bind(this)}
+      />
     );
   }
 }

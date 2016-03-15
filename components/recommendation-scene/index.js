@@ -17,7 +17,7 @@ export default class RecommendationScene extends Component {
 
   static propTypes = {
     goBack: React.PropTypes.func.isRequired,
-    onToggleRecommendation: React.PropTypes.func,
+    onToggleRecommendation: React.PropTypes.func.is,
   };
 
   state = {
@@ -93,10 +93,8 @@ export default class RecommendationScene extends Component {
           {!this.state.cleared && 
           <Card style={!shouldScroll && styles.flexFull}>
             <Recommendation 
-                  willToggle={this.handleToggle.bind(this)}
-                  onLayout={this.handleChildLayout.bind(this)} 
-                  recommendation={recommendation} 
-                  onToggleRecommendation={this.props.onToggleRecommendation}/>
+              onLayout={this.handleChildLayout.bind(this)} 
+              recommendation={recommendation} />
           </Card>
           }
 

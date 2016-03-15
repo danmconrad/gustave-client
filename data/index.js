@@ -240,14 +240,14 @@ export function getUserRecommendations(userId) {
   let user = getUser(userId);
 
   return user.recommendations
-      .filter(event => !user.saved.includes(event) && !user.dismissed.includes(event))
-      .map(eventId => getUserRecommendation(eventId));
+      .filter(event => !user.dismissed.includes(event))
+      .map(eventId => getUserRecommendation(userId, eventId));
 }
 
 export function getUserSavedRecommendations(userId) {
   let user = getUser(userId);
 
-  return user.saved.map(eventId => getUserRecommendation(eventId));
+  return user.saved.map(eventId => getUserRecommendation(userId, eventId));
 }
 
 export function isUserSavedRecommendation(userId, recommendationId) {
@@ -256,7 +256,7 @@ export function isUserSavedRecommendation(userId, recommendationId) {
   return user.saved.includes(recommendationId);
 }
 
-export function getUserRecommendation(eventId) {
+export function getUserRecommendation(userID, eventId) {
   let event = getEvent(eventId);
   let place = getPlace(event.place);
   let id = event.id;
