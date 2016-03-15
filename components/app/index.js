@@ -41,7 +41,7 @@ export default class Gustave extends Component {
     return (
       <View style={[styles.app, this.state.theme.lightBackground]}>
         <View style={[styles.statusBarBackground, this.state.theme.darkBackground]} />
-        <StatusBar barStyle={this.state.theme.statusBar} />
+        <StatusBar barStyle={statusBar} />
         <Navigation 
           ref='navigation' 
           onRecommendationAction={this.onRecommendationAction.bind(this)}

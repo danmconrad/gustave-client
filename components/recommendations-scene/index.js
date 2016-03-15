@@ -6,13 +6,11 @@ import React, {
   ListView, 
   ScrollView, 
   View, 
-  Text, 
-  TouchableWithoutFeedback
+  Text
 } from 'react-native';
 
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
-import Button from '../button';
 import Card from '../card';
 import Swipeable from '../swipeable';
 import Recommendation from '../recommendation';
@@ -27,9 +25,9 @@ export default class RecommendationsScene extends Component {
   };
 
   static propTypes = {
+    style: View.propTypes.style,
     recommendations: React.PropTypes.arrayOf(React.PropTypes.object),
     onRecommendationAction: React.PropTypes.func,
-    isLoadingMore: React.PropTypes.bool, // Will prob be replaced with call to this.props.relay.hasOptimisticUpdate
   };
 
   static defaultProps = {
@@ -37,59 +35,14 @@ export default class RecommendationsScene extends Component {
   };
 
   state = {
-    hasOverflow: false,
-    isChildDetailed: false,
     datasource: new ListView.DataSource({
       rowHasChanged: this.rowHasChanged.bind(this),
     }),
+    viewportHeight: 0,
   };
 
   rowHasChanged(r1, r2) {
-    return r1 !== r2;
-  }
-
-  attributes = {
-    height: 0,
-    childHeight: 0,
-  };
-
-  handleLayout(event) {
-    this.attributes.height = event.nativeEvent.layout.height;
-    this.checkOverflow();
-  }
-
-  handleChildLayout(event) {
-    this.attributes.childHeight = event.nativeEvent.layout.height;
-    this.checkOverflow();
-  }
-
-  checkOverflow() {
-    if (this.attributes.childHeight > this.attributes.height)
-      !this.state.hasOverflow && this.setState({hasOverflow: true});
-    else
-      this.state.hasOverflow && this.setState({hasOverflow: false});
-
-    this.checkScrollTop();
-  }
-
-  handleToggle(nextIsDetailed) {
-    if (this.state.isChildDetailed !== nextIsDetailed) 
-      this.setState({isChildDetailed: nextIsDetailed});
-
-    this.checkScrollTop();
-  }
-
-  checkScrollTop() {
-    if (!this.refs.scroll) return; 
-
-    let shouldScroll = this.state.isChildDetailed && this.state.hasOverflow;
-    if (!shouldScroll)
-      this.scrollToTop(false);
-  }
-
-  scrollToTop(doAnimate) {
-    if (!this.refs.scroll) return;
-    this.refs.scroll.scrollTo({x: 0, y:0, animated: doAnimate || true});
+    return r1.id !== r2.id;
   }
 
   didSwipeLeft(recommendationID) {
@@ -111,16 +64,12 @@ export default class RecommendationsScene extends Component {
     };
 
     return (
-      <Swipeable 
-          // onLayout={this.handleLayout.bind(this)} 
-          style={styles.flexFull}
-          {...swipeableProps} >
-
-          <Card>
-            <Recommendation 
-              recommendation={recommendation}
-              onRecommendationAction={this.props.onRecommendationAction}/>
-          </Card>
+      <Swipeable {...swipeableProps} >
+        <Card minHeight={this.state.viewportHeight}>
+          <Recommendation 
+            recommendation={recommendation}
+            onRecommendationAction={this.props.onRecommendationAction}/>
+        </Card>
       </Swipeable>
     );
 
@@ -130,8 +79,6 @@ export default class RecommendationsScene extends Component {
     let emptyState = 
       <Text style={styles.emptyText}>No recommendations available.</Text>;
 
-    // let shouldScroll = this.state.isChildDetailed && this.state.hasOverflow;
-
     return (
       !this.props.recommendations.length ?
       /* Empty view */
@@ -139,9 +86,16 @@ export default class RecommendationsScene extends Component {
 
       /* Default view */
       <ListView 
-          style={[styles.flexFull, this.props.style]}
-          dataSource={this.state.datasource.cloneWithRows(this.props.recommendations)}
-          renderRow={this.renderRow.bind(this)}
+        style={[styles.flexFull, this.props.style]}
+        onLayout={(event) => this.setState({viewportHeight: event.nativeEvent.layout.height})}
+        dataSource={this.state.datasource.cloneWithRows(this.state.viewportHeight && this.props.recommendations)} // The guard prevents shitty rendering
+        renderRow={this.renderRow.bind(this)}
+        directionalLockEnabled={true}
+        showsVerticalScrollIndicator={false}
+        initialListSize={1}
+        pageSize={1}
+        scrollRenderAheadDistance={this.state.viewportHeight}
+        removeClippedSubviews={true}
       />
     );
   }
@@ -160,17 +114,5 @@ var styles = StyleSheet.create({
   emptyText: {
     color: '#fff',
     textAlign: 'center',
-  },
-
-  headingText: {
-    opacity: 0.85,
-    textAlign: 'center',
-    padding: 2.5,
-  },
-
-  edgeLabel: {
-    fontSize: 96,
-    fontWeight: '900',
-    textAlign: 'center'
   },
 });
