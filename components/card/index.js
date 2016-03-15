@@ -11,7 +11,7 @@ export default class Card extends Component {
   };
 
   state = {
-    enterAnimation: new Animated.Value(0),
+    // enterAnimation: new Animated.Value(0),
     cardHeight: this.props.minHeight,   // Only used to set initial, out of sync is intentional
   };
 
@@ -21,14 +21,14 @@ export default class Card extends Component {
   };
 
   componentDidMount() {
-    Animated.timing(this.state.enterAnimation, {
-      toValue: 1,
-      duration: 250,
-      easing: Easing.elastic(1),
-    }).start(() => {
-      this.attributes.animationFinished = true;
-      this.checkOverflow();
-    });
+    // Animated.timing(this.state.enterAnimation, {
+    //   toValue: 1,
+    //   duration: 250,
+    //   easing: Easing.elastic(1),
+    // }).start(() => {
+    //   this.attributes.animationFinished = true;
+    //   this.checkOverflow();
+    // });
   }
 
   checkOverflow(event) {
@@ -37,7 +37,7 @@ export default class Card extends Component {
     if (event)
       this.attributes.contentHeight = event.nativeEvent.layout.height;
 
-    if (!this.attributes.animationFinished) return;
+    // if (!this.attributes.animationFinished) return;
 
     let contentHeight = this.attributes.contentHeight;
     let minHeight = this.props.minHeight;
@@ -52,17 +52,17 @@ export default class Card extends Component {
   render() {
     return (
       <View style={[this.props.minHeight && {height: this.state.cardHeight}]} onLayout={this.props.onLayout}>
-        <Animated.View 
+        <View 
           style={[
             styles.card, 
             this.props.minHeight && styles.flexFull,
             this.props.style, 
-            {transform: [{scale: this.state.enterAnimation}], opacity: this.state.enterAnimation},
+            // {transform: [{scale: this.state.enterAnimation}], opacity: this.state.enterAnimation},
           ]}>
             <View onLayout={this.checkOverflow.bind(this)}>
               {this.props.children}
             </View>
-        </Animated.View>
+        </View>
       </View>
     );
   }

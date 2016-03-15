@@ -166,7 +166,9 @@ export default class Recommendation extends Component {
       .isUserSavedRecommendation(this.context.user.id, this.props.recommendation.id);
 
     return (
-      <View style={[styles.container, !this.state.isDetailed ? styles.flexFull : styles.flexNone]}>
+      <View
+        style={[styles.container, !this.state.isDetailed ? styles.flexFull : styles.flexNone]}
+        onLayout={this.props.onLayout}>
 
         <Animated.Image
           style={[this.getImageStyles(), styles.backgroundImage]}

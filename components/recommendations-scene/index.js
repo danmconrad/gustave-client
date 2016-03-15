@@ -57,7 +57,7 @@ export default class RecommendationsScene extends Component {
       ...newHeight
     };
 
-    console.log(this.attributes.currentHeights, this.state.viewportHeight);
+    // console.log(this.attributes.currentHeights, this.state.viewportHeight);
   }
 
   didSwipeLeft(recommendationID) {
@@ -79,7 +79,7 @@ export default class RecommendationsScene extends Component {
     };
 
     return (
-      <Swipeable {...swipeableProps} >
+      <Swipeable {...swipeableProps}>
         <Card minHeight={this.state.viewportHeight} onLayout={this.updateRowHeight.bind(this, rowID)}>
           <Recommendation 
             recommendation={recommendation}
@@ -111,10 +111,10 @@ export default class RecommendationsScene extends Component {
         pageSize={1}
         scrollRenderAheadDistance={this.state.viewportHeight}
         removeClippedSubviews={true}
-        pagingEnabled={true}
-        snapToInterval={this.state.viewportHeight}
-        snapToAlignment={'start'}
-        onScroll={(e) => console.log(e.nativeEvent.contentOffset.y)}
+        // pagingEnabled={true}
+        // snapToInterval={this.state.viewportHeight}
+        // snapToAlignment={'start'}
+        // onScroll={(e) => console.log(e.nativeEvent.contentOffset.y)}
         scrollEventThrottle={250}
       />
     );

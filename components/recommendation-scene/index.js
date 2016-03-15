@@ -28,10 +28,6 @@ export default class RecommendationScene extends Component {
     if (this.state.isChildDetailed !== nextIsDetailed) 
       this.setState({isChildDetailed: nextIsDetailed});
 
-    this.checkScrollTop();
-  }
-
-  checkScrollTop() {
     if (!this.state.isChildDetailed)
       this.refs.scroll.scrollTo({x: 0, y:0, animated: true});
   }
