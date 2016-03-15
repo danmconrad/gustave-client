@@ -29,6 +29,7 @@ export default class Recommendation extends Component {
   static propTypes = {
     recommendation: React.PropTypes.object.isRequired,
     onRecommendationAction: React.PropTypes.func,
+    willToggle: React.PropTypes.func,
     onLayout: React.PropTypes.func,
   };
 
@@ -165,10 +166,7 @@ export default class Recommendation extends Component {
       .isUserSavedRecommendation(this.context.user.id, this.props.recommendation.id);
 
     return (
-      <View
-        style={[styles.container, !this.state.isDetailed ? styles.flexFull : styles.flexNone]}
-        // Must pass the prop function down to notify parent of new sizes on toggle
-        onLayout={this.props.onLayout}>
+      <View style={[styles.container, !this.state.isDetailed ? styles.flexFull : styles.flexNone]}>
 
         <Animated.Image
           style={[this.getImageStyles(), styles.backgroundImage]}

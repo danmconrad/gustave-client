@@ -21,7 +21,7 @@ export default class NavigationBar extends Component {
   };
 
   static propTypes = {
-    navigator: React.PropTypes.object,
+    navigation: React.PropTypes.object,
     heartNumber: React.PropTypes.number,
   };
 
@@ -72,27 +72,13 @@ export default class NavigationBar extends Component {
   }
 
   onHomeClick() {
-    this.resetToRoute('recommendations');
+    this.props.navigation.goToRoute('recommendations');
   }
 
   onHeartClick() {
-    this.resetToRoute('saved');
+    this.props.navigation.goToRoute('saved');
   }
 
-  resetToRoute(id) {
-    this.setState({clicked: id});
-    
-    let homeRoute = null;
-    if (id === 'recommendations') {
-      homeRoute = _.find(this.props.navigator.getCurrentRoutes(), {id});
-    }
-
-    if (homeRoute) {
-      this.props.navigator.popToRoute(homeRoute);
-    } else {
-      this.props.navigator.resetTo({id});
-    }
-  }
 
   render() {
     let currentRoutes = this.props.navigator.getCurrentRoutes();

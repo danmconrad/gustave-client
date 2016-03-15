@@ -7,6 +7,7 @@ export default class Card extends Component {
   static propTypes = {
     style: View.propTypes.style,
     minHeight: React.PropTypes.number,
+    onLayout: React.PropTypes.func,
   };
 
   state = {
@@ -50,7 +51,7 @@ export default class Card extends Component {
 
   render() {
     return (
-      <View style={[this.props.minHeight && {height: this.state.cardHeight}]}>
+      <View style={[this.props.minHeight && {height: this.state.cardHeight}]} onLayout={this.props.onLayout}>
         <Animated.View 
           style={[
             styles.card, 

@@ -44,6 +44,21 @@ export default class Navigation extends Component {
     }
   }
 
+  goToRoute(id, routeProps) {
+    this.setState({clicked: id});
+    
+    let homeRoute = null;
+    if (id === 'recommendations') {
+      homeRoute = _.find(this.refs.navigator.getCurrentRoutes(), {id});
+    }
+
+    if (homeRoute) {
+      this.refs.navigator.popToRoute(homeRoute);
+    } else {
+      this.refs.navigator.resetTo({id, ...routeProps});
+    }
+  }
+
   _configureScene(route, routeStack){
     return {
       ...Navigator.SceneConfigs.FloatFromBottomAndroid,
@@ -71,6 +86,7 @@ export default class Navigation extends Component {
       case 'saved':
         return (
           <SavedRecommendationsScene
+            recommendations={this.context.database.getUserSavedRecommendations(this.context.user.id)}
             onRecommendationAction={this.props.onRecommendationAction}/>
         );
     }
@@ -78,10 +94,10 @@ export default class Navigation extends Component {
 
   render() {
     let heartNumber = this.context.database.getUserSavedRecommendations(this.context.user.id).length;
-    let navBar = <NavigationBar heartNumber={heartNumber} />;
+    let navBar = <NavigationBar navigation={this} heartNumber={heartNumber} />;
 
     return (
-      <Navigator
+      <Navigator ref='navigator'
         sceneStyle={styles.scene}
         initialRoute={this.attributes.initialRoute}
         renderScene={this._renderScene.bind(this)}

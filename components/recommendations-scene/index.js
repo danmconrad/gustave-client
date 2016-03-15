@@ -41,8 +41,23 @@ export default class RecommendationsScene extends Component {
     viewportHeight: 0,
   };
 
+  attributes = {
+    currentHeights: {},
+  };
+
   rowHasChanged(r1, r2) {
     return r1.id !== r2.id;
+  }
+
+  updateRowHeight(rowID, event) {
+    let newHeight = {};
+    newHeight[rowID] = event.nativeEvent.layout.height;
+    this.attributes.currentHeights = {
+      ...this.attributes.currentHeights, 
+      ...newHeight
+    };
+
+    console.log(this.attributes.currentHeights, this.state.viewportHeight);
   }
 
   didSwipeLeft(recommendationID) {
@@ -65,7 +80,7 @@ export default class RecommendationsScene extends Component {
 
     return (
       <Swipeable {...swipeableProps} >
-        <Card minHeight={this.state.viewportHeight}>
+        <Card minHeight={this.state.viewportHeight} onLayout={this.updateRowHeight.bind(this, rowID)}>
           <Recommendation 
             recommendation={recommendation}
             onRecommendationAction={this.props.onRecommendationAction}/>
@@ -85,7 +100,7 @@ export default class RecommendationsScene extends Component {
       <View style={[styles.flexFull, styles.empty]}>{emptyState}</View> :
 
       /* Default view */
-      <ListView 
+      <ListView ref='recList'
         style={[styles.flexFull, this.props.style]}
         onLayout={(event) => this.setState({viewportHeight: event.nativeEvent.layout.height})}
         dataSource={this.state.datasource.cloneWithRows(this.state.viewportHeight && this.props.recommendations)} // The guard prevents shitty rendering
@@ -96,6 +111,11 @@ export default class RecommendationsScene extends Component {
         pageSize={1}
         scrollRenderAheadDistance={this.state.viewportHeight}
         removeClippedSubviews={true}
+        pagingEnabled={true}
+        snapToInterval={this.state.viewportHeight}
+        snapToAlignment={'start'}
+        onScroll={(e) => console.log(e.nativeEvent.contentOffset.y)}
+        scrollEventThrottle={250}
       />
     );
   }
