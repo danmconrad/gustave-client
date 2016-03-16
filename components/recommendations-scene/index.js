@@ -48,6 +48,8 @@ export default class RecommendationsScene extends Component {
     isExpanded: {},
     lastOffset: 0,
     currentTop: 0,
+    currentBottom: 0,
+    isDragging: false,
   };
   
   rowHasChanged(r1, r2) {
@@ -64,6 +66,8 @@ export default class RecommendationsScene extends Component {
   }
 
   checkShouldDoPaging(event) {
+    this.attributes.isDragging = false;
+
     let scrollOffset = event.nativeEvent.contentOffset.y,
         velocity = event.nativeEvent.velocity.y,
         isScrollingDown = this.attributes.lastOffset < scrollOffset,
@@ -75,27 +79,24 @@ export default class RecommendationsScene extends Component {
     let current = 0, top = 0, bottom = 0, eBottom = 0;
 
     for (let i = 0, len = heights.length; i < len; i++) {
-      let temp_top = bottom; // Top of this card is bottom of last card
-      let temp_bottom = bottom + heights[i];
-      let temp_eBottom = temp_bottom - this.state.viewportHeight;
+      top = bottom; // Top of this card is bottom of last card
+      bottom = bottom + heights[i];
+      eBottom = bottom - this.state.viewportHeight;
+      current = i;
 
       let adjustedMargin = Math.abs(velocity) > 1 ? 0 : margin;
 
-      let threshold = isScrollingDown ? (temp_eBottom + adjustedMargin) : (temp_top - adjustedMargin);
+      let threshold = isScrollingDown ? (eBottom + adjustedMargin) : (top - adjustedMargin);
 
-      if (!isScrollingDown && scrollOffset < threshold)
+      if (!isScrollingDown && scrollOffset > threshold)
         break;
-
-      current = i;
-      top = temp_top;
-      bottom = temp_bottom;
-      eBottom = temp_eBottom;
 
       if (isScrollingDown && scrollOffset < threshold)
         break;
     }
 
     this.attributes.currentTop = top;
+    this.attributes.currentBottom = bottom;
 
     let isSinglePage = heights[current] <= this.state.viewportHeight;
     let edge = isScrollingDown ? top : eBottom;
@@ -115,6 +116,22 @@ export default class RecommendationsScene extends Component {
     edge = isScrollingDown ? top : eBottom;
     this._scrollTo(edge);
     
+  }
+
+  checkOverscroll(event) {
+    if (this.attributes.isDragging) return;
+
+    let isScrollingExpanded = this.attributes.currentBottom - this.attributes.currentTop > this.state.viewportHeight;
+    if (!isScrollingExpanded) return;
+
+    let scrollOffset = event.nativeEvent.contentOffset.y,
+        isScrollingDown = this.attributes.lastOffset < scrollOffset,
+        eBottom = this.attributes.currentBottom - this.state.viewportHeight;
+
+    if (isScrollingDown && scrollOffset > eBottom)
+      this._scrollTo(eBottom);
+    else if (!isScrollingDown && scrollOffset < this.attributes.currentTop)
+      this._scrollTo(this.attributes.currentTop);
   }
 
   _scrollTo(y, animated) {
@@ -183,7 +200,10 @@ export default class RecommendationsScene extends Component {
         pageSize={1}
         scrollRenderAheadDistance={this.state.viewportHeight}
         removeClippedSubviews={true}
+        onScrollBeginDrag={() => this.attributes.isDragging = true}
         onScrollEndDrag={this.checkShouldDoPaging.bind(this)} // This shit ain't even documented, yo!
+        onScroll={this.checkOverscroll.bind(this)}
+        scrollEventThrottle={250}
       />
     );
   }
