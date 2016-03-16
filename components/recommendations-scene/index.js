@@ -40,7 +40,6 @@ export default class RecommendationsScene extends Component {
       rowHasChanged: this.rowHasChanged.bind(this),
     }),
     viewportHeight: 0,
-    scrollEnabled: true,
   };
 
   attributes = {
@@ -117,13 +116,13 @@ export default class RecommendationsScene extends Component {
     
   }
 
-  checkOverscroll(event) {
+  checkOverscroll() {
     if (this.attributes.isDragging) return;
 
     let isScrollingExpanded = this.attributes.currentBottom - this.attributes.currentTop > this.state.viewportHeight;
     if (!isScrollingExpanded) return;
 
-    let scrollOffset = event.nativeEvent.contentOffset.y,
+    let scrollOffset = this.refs['recList'].scrollProperties.offset,
         isScrollingDown = this.attributes.lastOffset < scrollOffset,
         eBottom = this.attributes.currentBottom - this.state.viewportHeight;
 
@@ -201,8 +200,7 @@ export default class RecommendationsScene extends Component {
         removeClippedSubviews={true}
         onScrollBeginDrag={() => this.attributes.isDragging = true}
         onScrollEndDrag={this.checkShouldDoPaging.bind(this)} // This shit ain't even documented, yo!
-        onScroll={this.checkOverscroll.bind(this)}
-        scrollEventThrottle={250}
+        onChangeVisibleRows={this.checkOverscroll.bind(this)}
       />
     );
   }
