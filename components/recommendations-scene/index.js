@@ -86,15 +86,14 @@ export default class RecommendationsScene extends Component {
 
       let adjustedMargin = Math.abs(velocity) > 1 ? 0 : margin;
 
-      let threshold = isScrollingDown ? (eBottom + adjustedMargin) : (top - adjustedMargin);
+      let threshold = isScrollingDown ? (eBottom + adjustedMargin) : (bottom - adjustedMargin);
 
-      if (!isScrollingDown && scrollOffset > threshold)
+      if (!isScrollingDown && scrollOffset < threshold)
         break;
 
       if (isScrollingDown && scrollOffset < threshold)
         break;
     }
-
     this.attributes.currentTop = top;
     this.attributes.currentBottom = bottom;
 
