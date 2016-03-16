@@ -9,37 +9,31 @@ export default class Card extends Component {
   };
 
   state = {
-    // enterAnimation: new Animated.Value(0),
+    enterAnimation: new Animated.Value(0),
   };
 
   componentDidMount() {
-    // Animated.timing(this.state.enterAnimation, {
-    //   toValue: 1,
-    //   duration: 250,
-    //   easing: Easing.elastic(1),
-    // }).start(() => {
-    //   this.attributes.animationFinished = true;
-    //   this.checkOverflow();
-    // });
+    Animated.timing(this.state.enterAnimation, {
+      toValue: 1,
+      duration: 250,
+      easing: Easing.elastic(1),
+    }).start();
   }
 
   render() {
+
+    let transforms = [{scale: this.state.enterAnimation}, ];
+
     return (
-      <View {...this.props}
-        style={[styles.card, this.props.style, 
-          // {transform: [{scale: this.state.enterAnimation}], opacity: this.state.enterAnimation},
-        ]}>
-          {this.props.children}
-      </View>
+      <Animated.View style={[styles.card, this.props.style, {transform: transforms, opacity: this.state.enterAnimation}]}>
+        {this.props.children}
+      </Animated.View>
     );
   }
 }
 
-var styles = StyleSheet.create({
-  flexFull : {
-    flex: 1,
-  },
 
+var styles = StyleSheet.create({
   card: {
     margin: 4,
     borderRadius: 8,

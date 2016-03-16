@@ -45,17 +45,21 @@ export default class RecommendationsScene extends Component {
     currentHeights: [],
     lastOffset: 0,
   };
-
+  
   rowHasChanged(r1, r2) {
     return r1.id !== r2.id;
   }
 
   updateRowHeight(rowID, event) {
+    if (!event) return;
+      // this.attributes.currentHeights[Number(row)ID]
     this.attributes.currentHeights[Number(rowID)] = event.nativeEvent.layout.height;
+    this.attributes.currentHeights.length = this.props.recommendations.length;
   }
 
   checkShouldDoPaging(event) {
     let scrollOffset = event.nativeEvent.contentOffset.y,
+        velocity = event.nativeEvent.velocity.y,
         isScrollingDown = this.attributes.lastOffset < scrollOffset,
         heights = this.attributes.currentHeights,
         margin = this.state.viewportHeight * 0.10;
@@ -69,7 +73,9 @@ export default class RecommendationsScene extends Component {
       let temp_bottom = bottom + heights[i];
       let temp_eBottom = temp_bottom - this.state.viewportHeight;
 
-      let threshold = isScrollingDown ? (temp_eBottom + margin) : (temp_top - margin);
+      let adjustedMargin = Math.abs(velocity) > 1 ? 0 : margin;
+
+      let threshold = isScrollingDown ? (temp_eBottom + adjustedMargin) : (temp_top - adjustedMargin);
 
       if (!isScrollingDown && scrollOffset < threshold)
         break;
@@ -105,6 +111,7 @@ export default class RecommendationsScene extends Component {
 
   _scrollTo(y) {
     this.refs['recList'].scrollTo({y, animated: true});
+    this.attributes.lastOffset = y;
   }
 
   didSwipeLeft(recommendationID) {
@@ -128,6 +135,7 @@ export default class RecommendationsScene extends Component {
     return (
       <Swipeable {...swipeableProps}>
         <ExpandableRecommendation 
+          key={recommendation.id}
           onLayout={this.updateRowHeight.bind(this, rowID)}
           collapsedHeight={this.state.viewportHeight}
           recommendation={recommendation}
@@ -150,7 +158,7 @@ export default class RecommendationsScene extends Component {
       <ListView ref='recList'
         style={[styles.flexFull, this.props.style]}
         onLayout={(event) => this.setState({viewportHeight: event.nativeEvent.layout.height})}
-        dataSource={this.state.datasource.cloneWithRows(this.state.viewportHeight && this.props.recommendations)} // The guard prevents shitty rendering
+        dataSource={this.state.datasource.cloneWithRows(this.props.recommendations)} // The guard prevents shitty rendering
         renderRow={this.renderRow.bind(this)}
         directionalLockEnabled={true}
         showsVerticalScrollIndicator={false}
@@ -177,6 +185,10 @@ class ExpandableRecommendation extends Component {
     isRecDetailed: false,
     recHeight: 0,
   };
+
+  componentWillUnmount() {
+    this.props.onLayout && this.props.onLayout();
+  }
 
   onRecommendationToggle(isRecDetailed) {
     if (this.state.isRecDetailed !== isRecDetailed)
