@@ -46,27 +46,33 @@ export default class Card extends Component {
       this.setState({cardHeight: contentHeight});
     else if (this.state.cardHeight !== minHeight)
       this.setState({cardHeight: minHeight}) 
-
   }
 
   render() {
+
+    let heightMinusMargins = this.state.cardHeight - 2 * marginSize;
+
+    let {style: minHeight} = StyleSheet.create({style: {height: heightMinusMargins}});
+    let children = React.Children.map(this.props.children, (child) => {
+      return React.cloneElement(child, {onLayout: this.checkOverflow.bind(this)});
+    });
+
     return (
-      <View style={[this.props.minHeight && {height: this.state.cardHeight}]} onLayout={this.props.onLayout}>
-        <View 
-          style={[
-            styles.card, 
-            this.props.minHeight && styles.flexFull,
-            this.props.style, 
-            // {transform: [{scale: this.state.enterAnimation}], opacity: this.state.enterAnimation},
-          ]}>
-            <View style={styles.flexFull} onLayout={this.checkOverflow.bind(this)}>
-              {this.props.children}
-            </View>
-        </View>
+      <View 
+        style={[
+          this.props.minHeight ? minHeight : styles.flexFull,
+          styles.card, 
+          this.props.style, 
+          // {transform: [{scale: this.state.enterAnimation}], opacity: this.state.enterAnimation},
+        ]}
+        onLayout={this.props.onLayout}>
+        {children}
       </View>
     );
   }
 }
+
+const marginSize = 4;
 
 var styles = StyleSheet.create({
   flexFull : {
@@ -74,7 +80,7 @@ var styles = StyleSheet.create({
   },
 
   card: {
-    margin: 4,
+    margin: marginSize,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: '#666',
