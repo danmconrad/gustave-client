@@ -39,12 +39,11 @@ export default class RecommendationsScene extends Component {
       rowHasChanged: this.rowHasChanged.bind(this),
     }),
     viewportHeight: 0,
-    pagingEnabled: true,
-    snapToInterval: 0,
   };
 
   attributes = {
     currentHeights: [],
+    lastOffset: 0,
   };
 
   rowHasChanged(r1, r2) {
@@ -53,38 +52,59 @@ export default class RecommendationsScene extends Component {
 
   updateRowHeight(rowID, event) {
     this.attributes.currentHeights[Number(rowID)] = event.nativeEvent.layout.height;
-    this.checkShouldDoPaging();
   }
 
-  checkShouldDoPaging() {
-    let scrollOffset = this.refs['recList'].scrollProperties.offset;
-    let heights = this.attributes.currentHeights;
+  checkShouldDoPaging(event) {
+    let scrollOffset = event.nativeEvent.contentOffset.y,
+        isScrollingDown = this.attributes.lastOffset < scrollOffset,
+        heights = this.attributes.currentHeights,
+        margin = this.state.viewportHeight * 0.10;
 
-    let current = 0, bottom = 0;
+    this.attributes.lastOffset = scrollOffset;
+
+    let current = 0, top = 0, bottom = 0, eBottom = 0;
+
     for (let i = 0, len = heights.length; i < len; i++) {
-      current = i;
-      bottom = bottom + heights[i];
+      let temp_top = bottom; // Top of this card is bottom of last card
+      let temp_bottom = bottom + heights[i];
+      let temp_eBottom = temp_bottom - this.state.viewportHeight;
 
-      if (bottom > scrollOffset)
+      let threshold = isScrollingDown ? (temp_eBottom + margin) : (temp_top - margin);
+
+      if (!isScrollingDown && scrollOffset < threshold)
+        break;
+
+      current = i;
+      top = temp_top;
+      bottom = temp_bottom;
+      eBottom = temp_eBottom;
+
+      if (isScrollingDown && scrollOffset < threshold)
         break;
     }
 
-    let currentHeight = heights[current]; 
+    let isSinglePage = heights[current] <= this.state.viewportHeight;
+    let edge = isScrollingDown ? top : eBottom;
 
-    if (currentHeight <= this.state.viewportHeight)
-      return this._setPagingStateEfficiently(true);
+    if (isSinglePage)
+      return this._scrollTo(edge);
 
-    if (scrollOffset >= bottom - this.state.viewportHeight) {
-      return this._setPagingStateEfficiently(true);
-    }
-      
-    return this._setPagingStateEfficiently(false);
+    let isScrollingWithin = scrollOffset > top - margin && scrollOffset < eBottom + margin;
+    let isWithinRange = isScrollingDown ? (eBottom - margin < scrollOffset) : (scrollOffset < top + margin);
+    edge = isScrollingDown ? eBottom : top;
+    
+    if (isScrollingWithin && isWithinRange)
+      return this._scrollTo(edge);
+    else if (isScrollingWithin)
+      return;
+
+    edge = isScrollingDown ? top : eBottom;
+    this._scrollTo(edge);
+    
   }
 
-  _setPagingStateEfficiently(pagingEnabled) {
-    // if (this.state.pagingEnabled !== pagingEnabled)
-      // this.setState({pagingEnabled, snapToInterval});
-    this.refs['recList'].setNativeProps({pagingEnabled});
+  _scrollTo(y) {
+    this.refs['recList'].scrollTo({y, animated: true});
   }
 
   didSwipeLeft(recommendationID) {
@@ -107,11 +127,11 @@ export default class RecommendationsScene extends Component {
 
     return (
       <Swipeable {...swipeableProps}>
-        <Card minHeight={this.state.viewportHeight} onLayout={this.updateRowHeight.bind(this, rowID)}>
-          <Recommendation 
-            recommendation={recommendation}
-            onRecommendationAction={this.props.onRecommendationAction}/>
-        </Card>
+        <ExpandableRecommendation 
+          onLayout={this.updateRowHeight.bind(this, rowID)}
+          collapsedHeight={this.state.viewportHeight}
+          recommendation={recommendation}
+          onRecommendationAction={this.props.onRecommendationAction}/>
       </Swipeable>
     );
 
@@ -138,11 +158,60 @@ export default class RecommendationsScene extends Component {
         pageSize={1}
         scrollRenderAheadDistance={this.state.viewportHeight}
         removeClippedSubviews={true}
-        pagingEnabled={true}
-        onScroll={this.checkShouldDoPaging.bind(this)}
-        // onContentSizeChange={this.checkShouldDoPaging.bind(this)}
-        scrollEventThrottle={1}
+        onScrollEndDrag={this.checkShouldDoPaging.bind(this)} // This shit ain't even documented, yo!
       />
+    );
+  }
+}
+
+class ExpandableRecommendation extends Component {
+
+  static propTypes = {
+    onLayout: React.PropTypes.func,
+    recommendation: React.PropTypes.object,
+    onRecommendationAction: React.PropTypes.func,
+    collapsedHeight: React.PropTypes.number,
+  };
+
+  state = {
+    isRecDetailed: false,
+    recHeight: 0,
+  };
+
+  onRecommendationToggle(isRecDetailed) {
+    if (this.state.isRecDetailed !== isRecDetailed)
+      this.setState({isRecDetailed});
+  }
+
+  onRecLayout(event) {
+    this.setState({recHeight: event.nativeEvent.layout.height});
+  }
+
+  checkOverflow(event) {
+    if (!this.props.collapsedHeight) return;
+
+    let contentHeight = this.attributes.contentHeight;
+    let minHeight = this.props.minHeight;
+
+    if (contentHeight > minHeight && this.state.cardHeight !== contentHeight)
+      this.setState({cardHeight: contentHeight});
+    else if (this.state.cardHeight !== minHeight)
+      this.setState({cardHeight: minHeight}) 
+  }
+
+  render() {
+    let shouldFill = !this.state.isRecDetailed || this.state.recHeight < this.props.collapsedHeight;
+
+    return (
+      <View style={shouldFill && {height: this.props.collapsedHeight}} onLayout={this.props.onLayout}>
+        <Card style={shouldFill && styles.flexFull}>
+          <Recommendation
+            willToggle={this.onRecommendationToggle.bind(this)}
+            onLayout={this.onRecLayout.bind(this)}
+            recommendation={this.props.recommendation}
+            onRecommendationAction={this.props.onRecommendationAction}/>
+        </Card>
+      </View>
     );
   }
 }
