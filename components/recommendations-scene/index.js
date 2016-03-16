@@ -175,6 +175,7 @@ export default class RecommendationsScene extends Component {
   }
   stopRefreshing() {
     this.setState({isRefreshing: false})
+    this._scrollTo(0);
   }
 
   render() {
