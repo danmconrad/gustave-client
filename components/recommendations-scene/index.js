@@ -39,6 +39,7 @@ export default class RecommendationsScene extends Component {
       rowHasChanged: this.rowHasChanged.bind(this),
     }),
     viewportHeight: 0,
+    scrollEnabled: true,
   };
 
   attributes = {
@@ -51,15 +52,14 @@ export default class RecommendationsScene extends Component {
   }
 
   updateRowHeight(rowID, event) {
-    if (!event) return;
-      // this.attributes.currentHeights[Number(row)ID]
     this.attributes.currentHeights[Number(rowID)] = event.nativeEvent.layout.height;
     this.attributes.currentHeights.length = this.props.recommendations.length;
+    this.checkShouldDoPaging();
   }
 
   checkShouldDoPaging(event) {
-    let scrollOffset = event.nativeEvent.contentOffset.y,
-        velocity = event.nativeEvent.velocity.y,
+    let scrollOffset = event ? event.nativeEvent.contentOffset.y : this.refs['recList'].scrollProperties.offset,
+        velocity = event ? event.nativeEvent.velocity.y : 0,
         isScrollingDown = this.attributes.lastOffset < scrollOffset,
         heights = this.attributes.currentHeights,
         margin = this.state.viewportHeight * 0.10;
@@ -130,6 +130,8 @@ export default class RecommendationsScene extends Component {
       leftSwipeEdge: <View/>,
       onSwipeRight: this.didSwipeRight.bind(this, recommendation.id),
       onSwipeLeft: this.didSwipeLeft.bind(this, recommendation.id),
+      onSwipeStart: () => this.setState({scrollEnabled: false}),
+      onSwipeEnd: () => this.setState({scrollEnabled: true}),
     };
 
     return (
@@ -160,6 +162,7 @@ export default class RecommendationsScene extends Component {
         onLayout={(event) => this.setState({viewportHeight: event.nativeEvent.layout.height})}
         dataSource={this.state.datasource.cloneWithRows(this.props.recommendations)} // The guard prevents shitty rendering
         renderRow={this.renderRow.bind(this)}
+        scrollEnabled={this.state.scrollEnabled}
         directionalLockEnabled={true}
         showsVerticalScrollIndicator={false}
         initialListSize={1}
@@ -185,10 +188,6 @@ class ExpandableRecommendation extends Component {
     isRecDetailed: false,
     recHeight: 0,
   };
-
-  componentWillUnmount() {
-    this.props.onLayout && this.props.onLayout();
-  }
 
   onRecommendationToggle(isRecDetailed) {
     if (this.state.isRecDetailed !== isRecDetailed)
