@@ -7,7 +7,7 @@ import React, {
   ScrollView, 
   View, 
   Text,
-  InteractionManager,
+  RefreshControl,
 } from 'react-native';
 
 import Icon from 'react-native-vector-icons/MaterialIcons';
@@ -40,6 +40,7 @@ export default class RecommendationsScene extends Component {
       rowHasChanged: this.rowHasChanged.bind(this),
     }),
     viewportHeight: 0,
+    isRefreshing: false,
   };
 
   attributes = {
@@ -50,7 +51,7 @@ export default class RecommendationsScene extends Component {
     currentBottom: 0,
     isDragging: false,
   };
-  
+
   rowHasChanged(r1, r2) {
     return r1.id !== r2.id;
   }
@@ -66,6 +67,7 @@ export default class RecommendationsScene extends Component {
 
   checkShouldDoPaging(event) {
     this.attributes.isDragging = false;
+    if (this.state.isRefreshing) return;
 
     let scrollOffset = event.nativeEvent.contentOffset.y,
         velocity = event.nativeEvent.velocity.y,
@@ -107,7 +109,7 @@ export default class RecommendationsScene extends Component {
   }
 
   checkOverscroll(isScrollingDown) {
-    if (this.attributes.isDragging) return;
+    if (this.attributes.isDragging || this.state.isRefreshing) return;
 
     let isScrollingExpanded = this.attributes.currentBottom - this.attributes.currentTop > this.state.viewportHeight;
     if (!isScrollingExpanded) return;
@@ -164,7 +166,15 @@ export default class RecommendationsScene extends Component {
           shouldStartDetailed={shouldStartDetailed}/>
       </Swipeable>
     );
+  }
 
+  onRefresh() {
+    this.setState({isRefreshing: true});
+    console.log('oh so refreshing!'); // Presumably we'd do more than write a cheesy logout and set a timeout
+    setTimeout(this.stopRefreshing.bind(this), 2000);
+  }
+  stopRefreshing() {
+    this.setState({isRefreshing: false})
   }
 
   render() {
@@ -172,7 +182,7 @@ export default class RecommendationsScene extends Component {
       <Text style={styles.emptyText}>No recommendations available.</Text>;
 
     return (
-      !this.props.recommendations.length ?
+      !this.props.recommendations.length ? 
       /* Empty view */
       <View style={[styles.flexFull, styles.empty]}>{emptyState}</View> :
 
@@ -180,7 +190,7 @@ export default class RecommendationsScene extends Component {
       <ListView ref='recList'
         style={[styles.flexFull, this.props.style]}
         onLayout={(event) => this.setState({viewportHeight: event.nativeEvent.layout.height})}
-        dataSource={this.state.datasource.cloneWithRows(this.props.recommendations)} // The guard prevents shitty rendering
+        dataSource={this.state.datasource.cloneWithRows(this.props.recommendations)}
         renderRow={this.renderRow.bind(this)}
         canCancelContentTouches={true}
         directionalLockEnabled={true}
@@ -191,7 +201,15 @@ export default class RecommendationsScene extends Component {
         removeClippedSubviews={true}
         onScrollBeginDrag={() => this.attributes.isDragging = true}
         onScrollEndDrag={this.checkShouldDoPaging.bind(this)} // This shit ain't even documented, yo!
-        onChangeVisibleRows={this.checkOverscroll.bind(this, null)}
+        onChangeVisibleRows={this.checkOverscroll.bind(this, null)} 
+        refreshControl={ 
+          <RefreshControl
+            refreshing={this.state.isRefreshing}
+            onRefresh={this.onRefresh.bind(this)}
+            tintColor="#000000"
+            title="Fetching new recommendations..."
+            colors={['#ff0000', '#00ff00', '#0000ff']}
+            progressBackgroundColor="#ffff00"/>}
       />
     );
   }
