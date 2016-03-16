@@ -59,7 +59,7 @@ export default class Card extends Component {
             this.props.style, 
             // {transform: [{scale: this.state.enterAnimation}], opacity: this.state.enterAnimation},
           ]}>
-            <View onLayout={this.checkOverflow.bind(this)}>
+            <View style={styles.flexFull} onLayout={this.checkOverflow.bind(this)}>
               {this.props.children}
             </View>
         </View>

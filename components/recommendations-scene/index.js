@@ -39,10 +39,12 @@ export default class RecommendationsScene extends Component {
       rowHasChanged: this.rowHasChanged.bind(this),
     }),
     viewportHeight: 0,
+    pagingEnabled: true,
+    snapToInterval: 0,
   };
 
   attributes = {
-    currentHeights: {},
+    currentHeights: [],
   };
 
   rowHasChanged(r1, r2) {
@@ -50,14 +52,39 @@ export default class RecommendationsScene extends Component {
   }
 
   updateRowHeight(rowID, event) {
-    let newHeight = {};
-    newHeight[rowID] = event.nativeEvent.layout.height;
-    this.attributes.currentHeights = {
-      ...this.attributes.currentHeights, 
-      ...newHeight
-    };
+    this.attributes.currentHeights[Number(rowID)] = event.nativeEvent.layout.height;
+    this.checkShouldDoPaging();
+  }
 
-    // console.log(this.attributes.currentHeights, this.state.viewportHeight);
+  checkShouldDoPaging() {
+    let scrollOffset = this.refs['recList'].scrollProperties.offset;
+    let heights = this.attributes.currentHeights;
+
+    let current = 0, bottom = 0;
+    for (let i = 0, len = heights.length; i < len; i++) {
+      current = i;
+      bottom = bottom + heights[i];
+
+      if (bottom > scrollOffset)
+        break;
+    }
+
+    let currentHeight = heights[current]; 
+
+    if (currentHeight <= this.state.viewportHeight)
+      return this._setPagingStateEfficiently(true);
+
+    if (scrollOffset >= bottom - this.state.viewportHeight) {
+      return this._setPagingStateEfficiently(true);
+    }
+      
+    return this._setPagingStateEfficiently(false);
+  }
+
+  _setPagingStateEfficiently(pagingEnabled) {
+    // if (this.state.pagingEnabled !== pagingEnabled)
+      // this.setState({pagingEnabled, snapToInterval});
+    this.refs['recList'].setNativeProps({pagingEnabled});
   }
 
   didSwipeLeft(recommendationID) {
@@ -111,11 +138,10 @@ export default class RecommendationsScene extends Component {
         pageSize={1}
         scrollRenderAheadDistance={this.state.viewportHeight}
         removeClippedSubviews={true}
-        // pagingEnabled={true}
-        // snapToInterval={this.state.viewportHeight}
-        // snapToAlignment={'start'}
-        // onScroll={(e) => console.log(e.nativeEvent.contentOffset.y)}
-        scrollEventThrottle={250}
+        pagingEnabled={true}
+        onScroll={this.checkShouldDoPaging.bind(this)}
+        // onContentSizeChange={this.checkShouldDoPaging.bind(this)}
+        scrollEventThrottle={1}
       />
     );
   }
