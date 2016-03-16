@@ -45,18 +45,29 @@ export default class Navigation extends Component {
   }
 
   goToRoute(id, routeProps) {
-    this.setState({clicked: id});
-    
-    let homeRoute = null;
-    if (id === 'recommendations') {
-      homeRoute = _.find(this.refs.navigator.getCurrentRoutes(), {id});
-    }
 
-    if (homeRoute) {
-      this.refs.navigator.popToRoute(homeRoute);
-    } else {
-      this.refs.navigator.resetTo({id, ...routeProps});
-    }
+    let homeRouteId = 'recommendations';
+
+    let routeStack = this.refs.navigator.getCurrentRoutes();
+    let didRequestHomeRoute = id === homeRouteId;
+    let homeRoute = _.find(routeStack, {id: homeRouteId});
+    let homeRouteExists = Boolean(homeRoute);
+    let currentIsHomeRoute = homeRouteExists && _.last(routeStack).id === homeRouteId;
+
+    if (didRequestHomeRoute && currentIsHomeRoute)
+      return;
+
+    if (didRequestHomeRoute && homeRouteExists)
+      return this.refs.navigator.popToRoute(homeRoute);
+
+    if (didRequestHomeRoute && !homeRouteExists)
+      return this.refs.navigator.resetTo({id});
+
+    if (!didRequestHomeRoute && currentIsHomeRoute)
+      return this.refs.navigator.push({id});
+
+    // implied -- if (!didRequestHomeRoute && !currentIsHomeRoute) 
+    this.refs.navigator.replace({id});
   }
 
   _configureScene(route, routeStack){

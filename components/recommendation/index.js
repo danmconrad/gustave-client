@@ -31,6 +31,7 @@ export default class Recommendation extends Component {
     onRecommendationAction: React.PropTypes.func,
     willToggle: React.PropTypes.func,
     onLayout: React.PropTypes.func,
+    shouldStartDetailed: React.PropTypes.bool,
   };
 
   state = {
@@ -64,6 +65,14 @@ export default class Recommendation extends Component {
         outputRange: [4, 8],
       }),
     });
+
+    /* 
+      This should really be handled in initial state with a default...
+      This is only here until recommendations are redone.
+    */
+    if (this.props.shouldStartDetailed) {
+      this.toggleLayout();
+    }
   }
 
   toggleSavedRecommendation() {

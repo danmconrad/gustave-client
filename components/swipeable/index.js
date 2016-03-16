@@ -84,7 +84,7 @@ export default class Swipeable extends Component {
       onMoveShouldSetPanResponderCapture: () => false,
       onPanResponderGrant: this.onSwipeStart.bind(this),
       onPanResponderMove: this.onSwipeStep.bind(this),
-      onPanResponderTerminationRequest: () => false,
+      onPanResponderTerminationRequest: () => true,
       onPanResponderRelease: this.onRelease.bind(this),
       onPanResponderTerminate: this.onTerminate.bind(this),
       onShouldBlockNativeResponder: () => true,
@@ -168,7 +168,6 @@ export default class Swipeable extends Component {
 
       Animated.timing(this.state.offsetX, {toValue, duration}).start(() => {
         onSwipeHook && onSwipeHook();
-        this.reset();
       });
     });
   }
