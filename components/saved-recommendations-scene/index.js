@@ -22,15 +22,15 @@ export default class SavedRecommendationsScene extends Component {
 
   static contextTypes = {
     theme: React.PropTypes.object,
+    navigation: React.PropTypes.object,
   };
 
   static propTypes = {
-    savedRecommendations: React.PropTypes.arrayOf(React.PropTypes.object),
-    removeSavedRecommendation: React.PropTypes.func.isRequired,
+    recommendations: React.PropTypes.arrayOf(React.PropTypes.object),
   };
 
   static defaultProps = {
-    savedRecommendations: [],
+    recommendations: [],
   };
 
   state = {
@@ -95,47 +95,30 @@ export default class SavedRecommendationsScene extends Component {
     let start = moment(event.time.start).format('ddd MM/DD @ h:mm A');
     let end  = moment(event.time.end).format('ddd MM/DD @ h:mm A');
 
-    let leftSwipeEdge =
-      <TouchableOpacity onPress={this.removeRecommendation.bind(this, recommendation)} style={styles.edgeContainer}>
-        <Icon name="not-interested" style={[styles.edgeLabel, this.context.theme.negativeAction]} />
-      </TouchableOpacity>;
-
-    let swipeableProps = {
-      onSwipeLeft: this.removeRecommendation.bind(this, recommendation),
-      leftSwipeEdge,
-    };
-
     return (
-      <Swipeable {...swipeableProps}>
-        <Card>
-          <TouchableOpacity 
-            activeOpacity={CARD_CLICK_ACTIVE_OPACITY} 
-            onPress={this.props.viewRecommendation.bind(null, recommendation.id)}>
-            <View style={styles.recommendationContainer}>
-              <Image
-                style={styles.recommendationImage}
-                source={{uri: place.photo.uri}}/>
-              <View style={styles.recommendationTextContainer}>
-                <View style={styles.recommendationText}>
-                  <Text numberOfLines={1} style={styles.recommendationTitle}>
-                    {event.name + ' @ ' + place.name}
-                  </Text>
-                  <Text numberOfLines={2} style={styles.recommendationDescription}>
-                    {event.description}
-                  </Text>
-                  <Text style={styles.info}>{start}</Text>
-                </View>
+      <Card>
+        <TouchableOpacity 
+          activeOpacity={CARD_CLICK_ACTIVE_OPACITY} 
+          onPress={()=> this.context.navigation.goToRoute('recommendation', {recommendationID: recommendation.id})}>
+          <View style={styles.recommendationContainer}>
+            <Image
+              style={styles.recommendationImage}
+              source={{uri: place.photo.uri}}/>
+            <View style={styles.recommendationTextContainer}>
+              <View style={styles.recommendationText}>
+                <Text numberOfLines={1} style={styles.recommendationTitle}>
+                  {event.name + ' @ ' + place.name}
+                </Text>
+                <Text numberOfLines={2} style={styles.recommendationDescription}>
+                  {event.description}
+                </Text>
+                <Text style={styles.info}>{start}</Text>
               </View>
             </View>
-          </TouchableOpacity>
-        </Card>
-      </Swipeable>
+          </View>
+        </TouchableOpacity>
+      </Card>
     );
-  }
-
-
-  removeRecommendation(recommendation) {
-    this.props.removeSavedRecommendation(recommendation.id);
   }
 
   render() {
@@ -144,14 +127,14 @@ export default class SavedRecommendationsScene extends Component {
 
     // In the future, this should use only the recommendations saved this session
     // ... but we don't have sessions yet
-    let recentlyAdded = this.props.savedRecommendations
+    let recentlyAdded = this.props.recommendations
       .filter((rec) => {
         let isOver = moment(rec.event.time.end).isBefore(fakeNow);
         return !isOver;
       })
       .reverse();
 
-    let happeningNow = this.props.savedRecommendations
+    let happeningNow = this.props.recommendations
       .filter((rec) => {
         let isStarted = moment(rec.event.time.start).isSameOrBefore(fakeNow);
         let isOver = moment(rec.event.time.end).isBefore(fakeNow);
@@ -159,14 +142,14 @@ export default class SavedRecommendationsScene extends Component {
       })
       .sort((a,b) => moment(b.event.time.start).isBefore(a.event.time.start));
 
-    let upcoming = this.props.savedRecommendations
+    let upcoming = this.props.recommendations
       .filter((rec) => {
         let isStarted = moment(rec.event.time.start).isSameOrBefore(fakeNow);
         return !isStarted;
       })
       .sort((a,b) => moment(b.event.time.start).isBefore(a.event.time.start));
 
-    let recentlyEnded = this.props.savedRecommendations
+    let recentlyEnded = this.props.recommendations
       .filter((rec) => {
         let recEnd = moment(rec.event.time.end);
         let isOver = recEnd.isBefore(fakeNow);
@@ -184,7 +167,7 @@ export default class SavedRecommendationsScene extends Component {
       recentlyEnded,
     };
 
-    let hasSavedRecs = this.props.savedRecommendations.length > 0;
+    let hasSavedRecs = this.props.recommendations.length > 0;
 
     return (
       !hasSavedRecs ?

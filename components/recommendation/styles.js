@@ -10,6 +10,7 @@ export default StyleSheet.create({
   container: {
     flex: 1,
     flexDirection: 'column',
+    backgroundColor: 'white',
   },
 
   flexFull: {

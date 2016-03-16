@@ -1,9 +1,16 @@
 'use strict';
 
-import React, {Component, StyleSheet, ScrollView, View, Text, TouchableWithoutFeedback} from 'react-native';
+import React, {
+  Component, 
+  StyleSheet,
+  ListView, 
+  ScrollView, 
+  View, 
+  Text
+} from 'react-native';
+
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
-import Button from '../button';
 import Card from '../card';
 import Swipeable from '../swipeable';
 import Recommendation from '../recommendation';
@@ -13,152 +20,103 @@ export default class RecommendationsScene extends Component {
 
   static contextTypes = {
     theme: React.PropTypes.object,
+    user: React.PropTypes.object,
+    database: React.PropTypes.object,
   };
 
   static propTypes = {
-    nextRecommendation: React.PropTypes.object,
-    saveRecommendation: React.PropTypes.func.isRequired,
-    dismissRecommendation: React.PropTypes.func.isRequired,
-    onToggleRecommendation: React.PropTypes.func,
-    isLoadingMore: React.PropTypes.bool, // Will prob be replaced with call to this.props.relay.hasOptimisticUpdate
+    style: View.propTypes.style,
+    recommendations: React.PropTypes.arrayOf(React.PropTypes.object),
+    onRecommendationAction: React.PropTypes.func,
   };
 
   static defaultProps = {
-    nextRecommendations: null,
+    recommendations: [],
   };
 
   state = {
-    currentRecommendation: null,
-    hasOverflow: false,
-    isChildDetailed: false,
+    datasource: new ListView.DataSource({
+      rowHasChanged: this.rowHasChanged.bind(this),
+    }),
+    viewportHeight: 0,
   };
 
   attributes = {
-    height: 0,
-    childHeight: 0,
+    currentHeights: {},
   };
 
-  handleLayout(event) {
-    this.attributes.height = event.nativeEvent.layout.height;
-    this.checkOverflow();
+  rowHasChanged(r1, r2) {
+    return r1.id !== r2.id;
   }
 
-  handleChildLayout(event) {
-    this.attributes.childHeight = event.nativeEvent.layout.height;
-    this.checkOverflow();
+  updateRowHeight(rowID, event) {
+    let newHeight = {};
+    newHeight[rowID] = event.nativeEvent.layout.height;
+    this.attributes.currentHeights = {
+      ...this.attributes.currentHeights, 
+      ...newHeight
+    };
+
+    // console.log(this.attributes.currentHeights, this.state.viewportHeight);
   }
 
-  checkOverflow() {
-    if (this.attributes.childHeight > this.attributes.height)
-      !this.state.hasOverflow && this.setState({hasOverflow: true});
-    else
-      this.state.hasOverflow && this.setState({hasOverflow: false});
-
-    this.checkScrollTop();
+  didSwipeLeft(recommendationID) {
+    this.context.database.dismissUserRecommendation(this.context.user.id, recommendationID);
+    this.props.onRecommendationAction && this.props.onRecommendationAction();
   }
 
-  handleToggle(nextIsDetailed) {
-    if (this.state.isChildDetailed !== nextIsDetailed) 
-      this.setState({isChildDetailed: nextIsDetailed});
-
-    this.checkScrollTop();
+  didSwipeRight(recommendationID) {
+    this.didSwipeLeft(recommendationID);
   }
 
-  checkScrollTop() {
-    if (!this.refs.scroll) return; 
+  renderRow(recommendation, sectionID, rowID) {
 
-    let shouldScroll = this.state.isChildDetailed && this.state.hasOverflow;
-    if (!shouldScroll)
-      this.scrollToTop(false);
-  }
+    let swipeableProps = {
+      rightSwipeEdge: <View/>,
+      leftSwipeEdge: <View/>,
+      onSwipeRight: this.didSwipeRight.bind(this, recommendation.id),
+      onSwipeLeft: this.didSwipeLeft.bind(this, recommendation.id),
+    };
 
-  scrollToTop(doAnimate) {
-    if (!this.refs.scroll) return;
-    this.refs.scroll.scrollTo({x: 0, y:0, animated: doAnimate || true});
-  }
+    return (
+      <Swipeable {...swipeableProps}>
+        <Card minHeight={this.state.viewportHeight} onLayout={this.updateRowHeight.bind(this, rowID)}>
+          <Recommendation 
+            recommendation={recommendation}
+            onRecommendationAction={this.props.onRecommendationAction}/>
+        </Card>
+      </Swipeable>
+    );
 
-  componentWillMount() {
-    this.syncRec();
-  }
-
-  componentWillReceiveProps(nextProps) {
-    if (!this.state.currentRecommendation)
-      this.syncRec(nextProps);
-  }
-
-  didSwipeLeft() {
-    this.props.dismissRecommendation(this.state.currentRecommendation.id);
-    this.syncRec();
-  }
-
-  didSwipeRight() {
-    this.props.saveRecommendation(this.state.currentRecommendation.id);
-    this.syncRec();
-  }
-
-  // Intentional deviation from React pattern b/c we need manual control
-  syncRec(nextProps) {
-    let props = nextProps || this.props;
-    this.setState({currentRecommendation: props.nextRecommendation, hasOverflow: false, isChildDetailed: false});
   }
 
   render() {
-    let currentRecommendation = this.state.currentRecommendation;
-
-    let leftSwipeEdge = <Icon name="not-interested" style={[styles.edgeLabel, this.context.theme.negativeAction]} />;
-    let rightSwipeEdge = <Icon name="favorite" style={[styles.edgeLabel, this.context.theme.positiveAction]} />;
-
-    let emptyState = this.props.isLoadingMore ?
-      <Text style={styles.emptyText}>Loading recommendations...</Text> :
-      <Text style={styles.emptyText}>No recommendations available.</Text> ;
-
-    let swipeableProps = {
-      onSwipeRight: this.didSwipeRight.bind(this),
-      rightSwipeEdge,
-      onSwipeLeft: this.didSwipeLeft.bind(this),
-      leftSwipeEdge,
-    };
-
-    let shouldScroll = this.state.isChildDetailed && this.state.hasOverflow;
+    let emptyState = 
+      <Text style={styles.emptyText}>No recommendations available.</Text>;
 
     return (
-      !currentRecommendation ?
+      !this.props.recommendations.length ?
       /* Empty view */
       <View style={[styles.flexFull, styles.empty]}>{emptyState}</View> :
 
       /* Default view */
-      <View style={[styles.flexFull, this.props.style]}>
-        <TouchableWithoutFeedback onPress={this.scrollToTop.bind(this)} >
-          <View style={[this.context.theme.headerView]}>
-            <Text style={[styles.headingText, this.context.theme.headerText]}>
-              <Text style={{fontWeight: 'bold'}}>Gustave: </Text>
-              {this.state.isChildDetailed ? '"Here are the details..."' : '"I think you\'ll like..."'}
-            </Text>
-          </View>
-        </TouchableWithoutFeedback>
-        <Swipeable 
-            onLayout={this.handleLayout.bind(this)} 
-            style={styles.flexFull}
-            {...swipeableProps} >
-
-          <ScrollView ref="scroll"
-            scrollEnabled={this.state.hasOverflow} 
-            contentContainerStyle={!shouldScroll && styles.flexFull}
-            showsVerticalScrollIndicator={false}>
-
-            <Card key={currentRecommendation.id} style={!shouldScroll && styles.flexFull}>
-              <Recommendation 
-                willToggle={this.handleToggle.bind(this)}
-                onLayout={this.handleChildLayout.bind(this)} 
-                recommendation={currentRecommendation}
-                onToggleRecommendation={this.props.onToggleRecommendation}/>
-            </Card>
-
-          </ScrollView>
-
-        </Swipeable>
-      </View>
-
+      <ListView ref='recList'
+        style={[styles.flexFull, this.props.style]}
+        onLayout={(event) => this.setState({viewportHeight: event.nativeEvent.layout.height})}
+        dataSource={this.state.datasource.cloneWithRows(this.state.viewportHeight && this.props.recommendations)} // The guard prevents shitty rendering
+        renderRow={this.renderRow.bind(this)}
+        directionalLockEnabled={true}
+        showsVerticalScrollIndicator={false}
+        initialListSize={1}
+        pageSize={1}
+        scrollRenderAheadDistance={this.state.viewportHeight}
+        removeClippedSubviews={true}
+        // pagingEnabled={true}
+        // snapToInterval={this.state.viewportHeight}
+        // snapToAlignment={'start'}
+        // onScroll={(e) => console.log(e.nativeEvent.contentOffset.y)}
+        scrollEventThrottle={250}
+      />
     );
   }
 }
@@ -176,17 +134,5 @@ var styles = StyleSheet.create({
   emptyText: {
     color: '#fff',
     textAlign: 'center',
-  },
-
-  headingText: {
-    opacity: 0.85,
-    textAlign: 'center',
-    padding: 2.5,
-  },
-
-  edgeLabel: {
-    fontSize: 96,
-    fontWeight: '900',
-    textAlign: 'center'
   },
 });

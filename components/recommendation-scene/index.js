@@ -16,93 +16,44 @@ export default class RecommendationScene extends Component {
   };
 
   static propTypes = {
-    goBack: React.PropTypes.func.isRequired,
-    onToggleRecommendation: React.PropTypes.func,
+    recommendation: React.PropTypes.object.isRequired,
+    onRecommendationAction: React.PropTypes.func,
   };
 
   state = {
-    cleared: false,
-    hasOverflow: false,
-    toggleState: false,
+    isChildDetailed: false,
   };
 
-  attributes = {
-    height: 0,
-    childHeight: 0,
-  };
-
-  handleLayout(event) {
-    this.attributes.height = event.nativeEvent.layout.height;
-    InteractionManager.runAfterInteractions(this.checkOverflow.bind(this));
-  }
-
-  handleChildLayout(event) {
-    this.attributes.childHeight = event.nativeEvent.layout.height;
-    InteractionManager.runAfterInteractions(this.checkOverflow.bind(this));
-  }
-
-  checkOverflow() {
-    if (this.attributes.childHeight > this.attributes.height)
-      !this.state.hasOverflow && this.setState({hasOverflow: true});
-    else
-      this.state.hasOverflow && this.setState({hasOverflow: false});
-
-    this.checkScrollTop();
-  }
-
-  handleToggle(nextIsDetailed) {
+  handleChildToggle(nextIsDetailed) {
     if (this.state.isChildDetailed !== nextIsDetailed) 
       this.setState({isChildDetailed: nextIsDetailed});
 
-    this.checkScrollTop();
-  }
-
-  checkScrollTop() {
-    let shouldScroll = this.state.isChildDetailed && this.state.hasOverflow;
-    if (!shouldScroll)
-      this.refs.scroll.scrollTo({x: 0, y:0, animated: false});
-  }
-
-  didSwipeLeft() {
-    this.props.goBack();
-    this.setState({cleared: true});
+    if (!this.state.isChildDetailed)
+      this.refs.scroll.scrollTo({x: 0, y:0, animated: true});
   }
 
   render() {
-    let recommendation = this.props.recommendation;
+    let shouldScroll = this.state.isChildDetailed;
 
-    let leftSwipeEdge = <Icon name="arrow-back" style={[styles.edgeLabel, this.context.theme.negativeAction]} />;
-
-    let swipeableProps = {
-      onSwipeLeft: this.didSwipeLeft.bind(this),
-      leftSwipeEdge,
-    };
-
-    let shouldScroll = this.state.isChildDetailed && this.state.hasOverflow;
+    let emptyState = 
+      <Text style={styles.emptyText}>Whoops! Looks like we lost something.</Text>;
 
     return (
-      <Swipeable 
-          onLayout={this.handleLayout.bind(this)} 
-          style={[styles.flexFull, this.props.style]}
-          {...swipeableProps} >
+      !this.props.recommendation ?
+      /* Empty view */
+      <View style={[styles.flexFull, styles.empty]}>{emptyState}</View> :
 
-        <ScrollView ref="scroll"
-            scrollEnabled={this.state.hasOverflow} 
-            contentContainerStyle={!shouldScroll && styles.flexFull}>
+      /* Default view */
+      <ScrollView ref="scroll"
+          scrollEnabled={shouldScroll} 
+          contentContainerStyle={!shouldScroll && styles.flexFull}>
 
-          {!this.state.cleared && 
-          <Card style={!shouldScroll && styles.flexFull}>
-            <Recommendation 
-                  willToggle={this.handleToggle.bind(this)}
-                  onLayout={this.handleChildLayout.bind(this)} 
-                  recommendation={recommendation} 
-                  onToggleRecommendation={this.props.onToggleRecommendation}/>
-          </Card>
-          }
+          <Recommendation 
+            willToggle={this.handleChildToggle.bind(this)}
+            onRecommendationAction={this.props.onRecommendationAction}
+            recommendation={this.props.recommendation} />
 
-        </ScrollView>
-
-      </Swipeable>
+      </ScrollView>
     );
   }
 }
@@ -120,11 +71,5 @@ var styles = StyleSheet.create({
   emptyText: {
     color: '#fff',
     textAlign: 'center',
-  },
-
-  edgeLabel: {
-    fontSize: 96,
-    fontWeight: '900',
-    textAlign: 'center'
   },
 });
