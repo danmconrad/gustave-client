@@ -71,11 +71,12 @@ export default class RecommendationsScene extends Component {
         velocity = event.nativeEvent.velocity.y,
         isScrollingDown = this.attributes.lastOffset < scrollOffset,
         heights = this.attributes.currentHeights,
-        margin = this.state.viewportHeight * 0.10;
+        margin = this.state.viewportHeight * 0.25,
+        adjustedMargin = Math.abs(velocity) > 1 ? 0 : margin;
 
     this.attributes.lastOffset = scrollOffset;
 
-    let current = 0, top = 0, bottom = 0, eBottom = 0;
+    let current = 0, top = 0, bottom = 0, eBottom = 0, threshold = 0;
 
     for (let i = 0, len = heights.length; i < len; i++) {
       top = bottom; // Top of this card is bottom of last card
@@ -83,48 +84,38 @@ export default class RecommendationsScene extends Component {
       eBottom = bottom - this.state.viewportHeight;
       current = i;
 
-      let adjustedMargin = Math.abs(velocity) > 1 ? 0 : margin;
+      threshold = isScrollingDown ? (eBottom + adjustedMargin) : (bottom - adjustedMargin);
 
-      let threshold = isScrollingDown ? (eBottom + adjustedMargin) : (bottom - adjustedMargin);
-
-      if (!isScrollingDown && scrollOffset < threshold)
-        break;
-
-      if (isScrollingDown && scrollOffset < threshold)
+      if (scrollOffset < threshold)
         break;
     }
+
     this.attributes.currentTop = top;
     this.attributes.currentBottom = bottom;
 
     let isSinglePage = heights[current] <= this.state.viewportHeight;
+    let isScrollingWithin = isScrollingDown ? 
+      (scrollOffset < eBottom + adjustedMargin && scrollOffset > top) :
+      (scrollOffset > top - adjustedMargin && scrollOffset < eBottom) ;
+
+    if (!isSinglePage && isScrollingWithin) 
+      return this.checkOverscroll(isScrollingDown);
+
     let edge = isScrollingDown ? top : eBottom;
-
-    if (isSinglePage)
-      return this._scrollTo(edge);
-
-    let isScrollingWithin = scrollOffset > top - margin && scrollOffset < eBottom + margin;
-    let isWithinRange = isScrollingDown ? (eBottom - margin < scrollOffset) : (scrollOffset < top + margin);
-    edge = isScrollingDown ? eBottom : top;
-    
-    if (isScrollingWithin && isWithinRange)
-      return this._scrollTo(edge);
-    else if (isScrollingWithin)
-      return;
-
-    edge = isScrollingDown ? top : eBottom;
     this._scrollTo(edge);
     
   }
 
-  checkOverscroll() {
+  checkOverscroll(isScrollingDown) {
     if (this.attributes.isDragging) return;
 
     let isScrollingExpanded = this.attributes.currentBottom - this.attributes.currentTop > this.state.viewportHeight;
     if (!isScrollingExpanded) return;
 
     let scrollOffset = this.refs['recList'].scrollProperties.offset,
-        isScrollingDown = this.attributes.lastOffset < scrollOffset,
         eBottom = this.attributes.currentBottom - this.state.viewportHeight;
+
+    isScrollingDown = isScrollingDown !== null ? isScrollingDown : this.attributes.lastOffset < scrollOffset;
 
     if (isScrollingDown && scrollOffset > eBottom)
       this._scrollTo(eBottom);
@@ -133,8 +124,8 @@ export default class RecommendationsScene extends Component {
   }
 
   _scrollTo(y, animated) {
-    this.refs['recList'].scrollTo({y, animated});
     this.attributes.lastOffset = y;
+    this.refs['recList'].scrollTo({y, animated});
   }
 
   didSwipeLeft(recommendationID) {
@@ -200,7 +191,7 @@ export default class RecommendationsScene extends Component {
         removeClippedSubviews={true}
         onScrollBeginDrag={() => this.attributes.isDragging = true}
         onScrollEndDrag={this.checkShouldDoPaging.bind(this)} // This shit ain't even documented, yo!
-        onChangeVisibleRows={this.checkOverscroll.bind(this)}
+        onChangeVisibleRows={this.checkOverscroll.bind(this, null)}
       />
     );
   }
