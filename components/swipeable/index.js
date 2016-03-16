@@ -168,7 +168,6 @@ export default class Swipeable extends Component {
 
       Animated.timing(this.state.offsetX, {toValue, duration}).start(() => {
         onSwipeHook && onSwipeHook();
-        this.reset();
       });
     });
   }
