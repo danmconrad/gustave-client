@@ -17,6 +17,7 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import moment from 'moment';
 
 import Map from './map';
+import Stagger from './stagger';
 
 export default class Recommendation extends Component {
 
@@ -43,20 +44,20 @@ export default class Recommendation extends Component {
   };
 
   attributes = {
-    topContainerHeight: 0,
-    topContentHeight: 0,
+    initialTopContainerHeight: 0,
+    initialTopContentHeight: 0,
   };
 
   _handleTopContainerLayout(event) {
-    if (this.attributes.topContainerHeight) return;
+    if (this.attributes.initialTopContainerHeight) return;
 
-    this.attributes.topContainerHeight = event.nativeEvent.layout.height;
-    this.setState({topContainerHeight: new Animated.Value(this.attributes.topContainerHeight)});
+    this.attributes.initialTopContainerHeight = event.nativeEvent.layout.height;
+    this.setState({topContainerHeight: new Animated.Value(this.attributes.initialTopContainerHeight)});
   }
 
   _handleTopContentLayout(event) {
-    if (this.attributes.topContentHeight) return;
-    this.attributes.topContentHeight = event.nativeEvent.layout.height;
+    if (this.attributes.initialTopContentHeight) return;
+    this.attributes.initialTopContentHeight = event.nativeEvent.layout.height;
   }
 
   toggleSavedRecommendation() {
@@ -75,25 +76,33 @@ export default class Recommendation extends Component {
   }
 
   runAnimations() {
+    this.refs['content'].refs['stagger'].prepareForAnimations();
+
     if (this.state.isExpanded) {
       Animated.timing(this.state.topContainerHeight, {
-        toValue: this.attributes.topContainerHeight,
-        duration: 250,
+        toValue: this.attributes.initialTopContainerHeight,
+        duration: 200,
       }).start(this.finishToggleIsExpanded.bind(this));
     }
     else {
       Animated.timing(this.state.topContainerHeight, {
-        toValue: this.attributes.topContentHeight,
-        duration: 250,
+        toValue: this.attributes.initialTopContentHeight,
+        duration: 200,
       }).start(this.finishToggleIsExpanded.bind(this));
     }
   }
 
   finishToggleIsExpanded() {
     this.setState({isExpanded: !this.state.isExpanded});
+
     InteractionManager.runAfterInteractions(() => {
-      this.props.didToggleExpanded && this.props.didToggleExpanded(this.state.isExpanded);
+      let stagger = this.refs['content'].refs['stagger'].prepareForAnimations().runAnimations();    
+
+      InteractionManager.runAfterInteractions(() => {
+        this.props.didToggleExpanded && this.props.didToggleExpanded(this.state.isExpanded);
+      });
     });
+    
   }
 
   render() {
@@ -116,8 +125,8 @@ export default class Recommendation extends Component {
         </Animated.Image>
         <View style={[styles.bottomContainer]}>
           {this.state.isExpanded ? 
-            <RecommendationContent recommendation={this.props.recommendation} /> : 
-            <RecommendationContentPreview recommendation={this.props.recommendation} />}
+            <RecommendationContent ref="content" recommendation={this.props.recommendation} /> : 
+            <RecommendationContentPreview ref="content" recommendation={this.props.recommendation} />}
         </View>
         <View style={styles.actionContainer}>
           <TouchableOpacity onPress={this.toggleSavedRecommendation.bind(this)} style={[styles.action, styles.toggleSavedAction]}>
@@ -146,7 +155,7 @@ class RecommendationContentPreview extends Component {
     let labels = event.labels.concat(place.labels).join(',  ');
 
     return (
-      <View style={styles.contentPreview}>
+      <Stagger ref="stagger" style={styles.contentPreview}>
         <View style={styles.infoContainer}>
           <View style={styles.attributeContainer}>
             <Icon name="location-on" style={styles.attributeIcon} />
@@ -161,7 +170,7 @@ class RecommendationContentPreview extends Component {
         </View>
         <Text numberOfLines={6} style={styles.description}>{event.description}</Text>
         <Text numberOfLines={1} style={styles.labelContainer}>{labels}</Text>
-      </View>
+      </Stagger>
     );
   }
 }
@@ -186,7 +195,7 @@ class RecommendationContent extends Component {
     let time = `${isHappeningToday ? 'Today, ' : startTime.format('ddd')} ${startTime.format('h:mma')} - ${endTime.format('h:mma')}`;
 
     return (
-      <View style={styles.content}>
+      <Stagger ref="stagger" style={styles.content}>
 
         <Map
           style={styles.map}
@@ -246,7 +255,7 @@ class RecommendationContent extends Component {
         <Text style={styles.description}>{place.description}</Text>
         <Text style={styles.labelContainer}>{placeLabels}</Text>
 
-      </View>
+      </Stagger>
     );
   }
 }
