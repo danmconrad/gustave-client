@@ -66,6 +66,10 @@ export default class RecommendationsScene extends Component {
     this.attributes.isExpanded[recID] = isExpanded;
   }
 
+  didToggleExpanded() {
+    this._scrollTo(this.attributes.currentTop, false);
+  }
+
   checkShouldDoPaging(event) {
     this.attributes.isDragging = false;
     if (this.state.isRefreshing) return;
@@ -163,7 +167,8 @@ export default class RecommendationsScene extends Component {
           onRecommendationAction={this.props.onRecommendationAction}
           recommendation={recommendation}
           shouldStartDetailed={shouldStartDetailed}
-          willToggleExpanded={this.willToggleExpanded.bind(this)}/>
+          willToggleExpanded={this.willToggleExpanded.bind(this)}
+          didToggleExpanded={this.didToggleExpanded.bind(this)}/>
       </Swipeable>
     );
   }
@@ -227,6 +232,7 @@ class ExpandableRecommendation extends Component {
     willToggleExpanded: React.PropTypes.func,
     recommendation: React.PropTypes.object.isRequired,
     shouldStartDetailed: React.PropTypes.bool,
+    didToggleExpanded: React.PropTypes.func,
   };
 
   state = {
@@ -245,6 +251,8 @@ class ExpandableRecommendation extends Component {
   didToggleExpanded(isRecExpanded) {
     if (this.state.isRecExpanded !== isRecExpanded)
       this.setState({isRecExpanded});
+
+    this.props.didToggleExpanded && this.props.didToggleExpanded(isRecExpanded);
   }
 
   onRecLayout(event) {
