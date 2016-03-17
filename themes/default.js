@@ -5,7 +5,7 @@ export default StyleSheet.create({
     backgroundColor: '#2c072c',
   },
   lightBackground: {
-    backgroundColor: '#958390',
+    backgroundColor: '#eee',
   },
   positiveAction: {
     color: '#000',
