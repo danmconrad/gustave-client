@@ -61,7 +61,8 @@ export default class RecommendationsScene extends Component {
     this.attributes.currentHeights.length = this.props.recommendations.length;
   }
 
-  onToggleExpanded(recID, isExpanded) {
+  willToggleExpanded(recID, isExpanded) {
+    this._scrollTo(this.attributes.currentTop);
     this.attributes.isExpanded[recID] = isExpanded;
   }
 
@@ -156,14 +157,13 @@ export default class RecommendationsScene extends Component {
 
     return (
       <Swipeable key={recommendation.id} {...swipeableProps}>
-        <ExpandableRecommendation
-          key={recommendation.id}
-          onLayout={this.updateRowHeight.bind(this, rowID)}
+        <ExpandableRecommendation key={recommendation.id}
           collapsedHeight={this.state.viewportHeight}
-          recommendation={recommendation}
-          onToggleExpanded={this.onToggleExpanded.bind(this)}
+          onLayout={this.updateRowHeight.bind(this, rowID)}
           onRecommendationAction={this.props.onRecommendationAction}
-          shouldStartDetailed={shouldStartDetailed}/>
+          recommendation={recommendation}
+          shouldStartDetailed={shouldStartDetailed}
+          willToggleExpanded={this.willToggleExpanded.bind(this)}/>
       </Swipeable>
     );
   }
@@ -191,19 +191,17 @@ export default class RecommendationsScene extends Component {
       <ListView ref='recList'
         style={[styles.flexFull, this.props.style]}
         onLayout={(event) => this.setState({viewportHeight: event.nativeEvent.layout.height})}
-        dataSource={this.state.datasource.cloneWithRows(this.props.recommendations)}
+        // Guard on datasource prevents render jank... we make sure we've measured the viewport before loading the recs
+        dataSource={this.state.datasource.cloneWithRows(this.state.viewportHeight && this.props.recommendations)}
         renderRow={this.renderRow.bind(this)}
         canCancelContentTouches={true}
         directionalLockEnabled={true}
-        showsVerticalScrollIndicator={false}
         initialListSize={1}
-        pageSize={1}
-        scrollRenderAheadDistance={this.state.viewportHeight}
-        removeClippedSubviews={true}
+        onChangeVisibleRows={this.checkOverscroll.bind(this, null)}
         onScrollBeginDrag={() => this.attributes.isDragging = true}
         onScrollEndDrag={this.checkShouldDoPaging.bind(this)} // This shit ain't even documented, yo!
-        onChangeVisibleRows={this.checkOverscroll.bind(this, null)}
-        refreshControl={
+        pageSize={1}
+        refreshControl={ 
           <RefreshControl
             refreshing={this.state.isRefreshing}
             onRefresh={this.onRefresh.bind(this)}
@@ -211,7 +209,11 @@ export default class RecommendationsScene extends Component {
             title="Fetching new recommendations..."
             colors={['#ff0000', '#00ff00', '#0000ff']}
             progressBackgroundColor="#ffff00"/>
-          }/>
+        }
+        removeClippedSubviews={true}
+        scrollRenderAheadDistance={this.state.viewportHeight}
+        showsVerticalScrollIndicator={false}
+      />
     );
   }
 }
@@ -219,54 +221,50 @@ export default class RecommendationsScene extends Component {
 class ExpandableRecommendation extends Component {
 
   static propTypes = {
+    collapsedHeight: React.PropTypes.number.isRequired,
     onLayout: React.PropTypes.func,
-    recommendation: React.PropTypes.object,
     onRecommendationAction: React.PropTypes.func,
-    collapsedHeight: React.PropTypes.number,
-    onToggleExpanded: React.PropTypes.func,
+    willToggleExpanded: React.PropTypes.func,
+    recommendation: React.PropTypes.object.isRequired,
     shouldStartDetailed: React.PropTypes.bool,
   };
 
   state = {
-    isRecDetailed: false,
+    isRecExpanded: false,
     recHeight: 0,
   };
 
-  onToggleExpanded(isRecDetailed) {
-    if (this.state.isRecDetailed !== isRecDetailed)
-      this.setState({isRecDetailed});
+  attributes = {
+    recHeight: 0,
+  };
 
-    this.props.onToggleExpanded && this.props.onToggleExpanded(this.props.recommendation.id, this.state.isRecDetailed);
+  willToggleExpanded(isRecExpanded) {
+    this.props.willToggleExpanded && this.props.willToggleExpanded(this.props.recommendation.id, isRecExpanded);
+  }
+
+  didToggleExpanded(isRecExpanded) {
+    if (this.state.isRecExpanded !== isRecExpanded)
+      this.setState({isRecExpanded});
   }
 
   onRecLayout(event) {
     this.setState({recHeight: event.nativeEvent.layout.height});
   }
 
-  checkOverflow(event) {
-    if (!this.props.collapsedHeight) return;
-
-    let contentHeight = this.attributes.contentHeight;
-    let minHeight = this.props.minHeight;
-
-    if (contentHeight > minHeight && this.state.cardHeight !== contentHeight)
-      this.setState({cardHeight: contentHeight});
-    else if (this.state.cardHeight !== minHeight)
-      this.setState({cardHeight: minHeight})
-  }
-
   render() {
-    let shouldFill = this.state.recHeight < this.props.collapsedHeight;
+    let shouldFill = !this.state.isRecExpanded || this.state.recHeight < this.props.collapsedHeight;
+    let height = {height: shouldFill ? this.props.collapsedHeight : null};
 
     return (
-      <View style={shouldFill && {height: this.props.collapsedHeight}} onLayout={this.props.onLayout}>
-        <Card style={shouldFill && styles.flexFull}>
+      <View style={height} onLayout={this.props.onLayout}>
+        <Card style={styles.flexFull}>
           <Recommendation
-            willToggle={this.onToggleExpanded.bind(this)}
             onLayout={this.onRecLayout.bind(this)}
-            recommendation={this.props.recommendation}
             onRecommendationAction={this.props.onRecommendationAction}
-            shouldStartDetailed={this.props.shouldStartDetailed}/>
+            recommendation={this.props.recommendation}
+            shouldStartDetailed={this.props.shouldStartDetailed}
+            willToggleExpanded={this.willToggleExpanded.bind(this)}
+            didToggleExpanded={this.didToggleExpanded.bind(this)}/>
         </Card>
       </View>
     );
@@ -276,6 +274,10 @@ class ExpandableRecommendation extends Component {
 var styles = StyleSheet.create({
   flexFull: {
     flex: 1,
+  },
+
+  flexNone: {
+    flex: 0,
   },
 
   empty: {
