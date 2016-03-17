@@ -236,11 +236,7 @@ class ExpandableRecommendation extends Component {
   };
 
   state = {
-    isRecExpanded: false,
-    recHeight: 0,
-  };
-
-  attributes = {
+    isRecExpanded: this.props.shouldStartDetailed || false,
     recHeight: 0,
   };
 

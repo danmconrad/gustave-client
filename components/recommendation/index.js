@@ -6,11 +6,12 @@ import React, {
   Dimensions,
   Easing,
   Image,
+  InteractionManager,
+  LayoutAnimation,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
-  InteractionManager,
 } from 'react-native';
 
 import Icon from 'react-native-vector-icons/MaterialIcons';
@@ -39,25 +40,10 @@ export default class Recommendation extends Component {
   state = {
     isExpanded: this.props.shouldStartDetailed,
     isUserSaved: this.context.database.isUserSavedRecommendation(this.context.user.id, this.props.recommendation.id),
-  
-    topContainerHeight: null,
   };
 
-  attributes = {
-    initialTopContainerHeight: 0,
-    initialTopContentHeight: 0,
-  };
-
-  _handleTopContainerLayout(event) {
-    if (this.attributes.initialTopContainerHeight) return;
-
-    this.attributes.initialTopContainerHeight = event.nativeEvent.layout.height;
-    this.setState({topContainerHeight: new Animated.Value(this.attributes.initialTopContainerHeight)});
-  }
-
-  _handleTopContentLayout(event) {
-    if (this.attributes.initialTopContentHeight) return;
-    this.attributes.initialTopContentHeight = event.nativeEvent.layout.height;
+  componentDidMount() {
+    this.refs['content'].refs['stagger'].skipAnimations();
   }
 
   toggleSavedRecommendation() {
@@ -72,37 +58,19 @@ export default class Recommendation extends Component {
 
   toggleIsExpanded() {
     this.props.willToggleExpanded && this.props.willToggleExpanded(!this.state.isExpanded);
-    InteractionManager.runAfterInteractions(() => this.runAnimations());
+    InteractionManager.runAfterInteractions(() => this._finishToggleIsExpanded());
   }
 
-  runAnimations() {
+  _finishToggleIsExpanded() {
     this.refs['content'].refs['stagger'].prepareForAnimations();
-
-    if (this.state.isExpanded) {
-      Animated.timing(this.state.topContainerHeight, {
-        toValue: this.attributes.initialTopContainerHeight,
-        duration: 200,
-      }).start(this.finishToggleIsExpanded.bind(this));
-    }
-    else {
-      Animated.timing(this.state.topContainerHeight, {
-        toValue: this.attributes.initialTopContentHeight,
-        duration: 200,
-      }).start(this.finishToggleIsExpanded.bind(this));
-    }
-  }
-
-  finishToggleIsExpanded() {
-    this.setState({isExpanded: !this.state.isExpanded});
-
-    InteractionManager.runAfterInteractions(() => {
-      let stagger = this.refs['content'].refs['stagger'].prepareForAnimations().runAnimations();    
-
-      InteractionManager.runAfterInteractions(() => {
-        this.props.didToggleExpanded && this.props.didToggleExpanded(this.state.isExpanded);
-      });
-    });
     
+    let handle = InteractionManager.createInteractionHandle();
+    LayoutAnimation.easeInEaseOut(() => {
+      this.refs['content'].refs['stagger'].runAnimations();
+      InteractionManager.clearInteractionHandle(handle);
+      this.props.didToggleExpanded && this.props.didToggleExpanded(this.state.isExpanded);
+    });
+    this.setState({isExpanded: !this.state.isExpanded});
   }
 
   render() {
@@ -110,15 +78,14 @@ export default class Recommendation extends Component {
     let place = this.props.recommendation.place;
     let imageSource = {uri: place.photo.uri};
 
-    let topContainerHeight = Boolean(this.state.topContainerHeight) ? {flex: 0, height: this.state.topContainerHeight} : null;
-
     return (
-      <View style={[styles.container, this.state.isExpanded ? styles.flexNone : styles.flexFull, this.props.style]} onLayout={this.props.onLayout}>
+      <View 
+        style={[styles.container, this.state.isExpanded ? styles.flexNone : styles.flexFull, this.props.style]} 
+        onLayout={this.props.onLayout}>
         <Animated.Image 
           source={imageSource} 
-          style={[styles.topContainer, topContainerHeight]} 
-          onLayout={this._handleTopContainerLayout.bind(this)}>
-          <View style={styles.titleContainer} onLayout={this._handleTopContentLayout.bind(this)}>
+          style={[styles.topContainer, this.state.isExpanded && styles.flexNone]}>
+          <View style={styles.titleContainer}>
             <Text style={styles.title}>{event.name}</Text>
             <Text style={styles.subtitle}>{place.name}</Text>
           </View>
@@ -441,6 +408,8 @@ var styles = StyleSheet.create({
   map: {
     margin: -10,
     marginBottom: 10,
+    height: 100,
+    width: null,
   },
 
   placeTitle: {

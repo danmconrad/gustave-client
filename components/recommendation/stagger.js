@@ -22,13 +22,17 @@ export default class Stagger extends Component {
 
   componentWillMount() {
     this.attributes.components = React.Children.map(this.props.children, (component, i) => {
-      this.attributes.animations[i] = new Animated.Value(1);
+      this.attributes.animations[i] = new Animated.Value(0);
       return (
         <Animated.View style={{opacity: this.attributes.animations[i]}}>
           {component}
         </Animated.View>
       );
     });
+  }
+
+  skipAnimations() {
+    this.attributes.animations.forEach((animation) => animation.setValue(1));
   }
 
   prepareForAnimations() {
