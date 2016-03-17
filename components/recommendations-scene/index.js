@@ -1,11 +1,11 @@
 'use strict';
 
 import React, {
-  Component, 
+  Component,
   StyleSheet,
-  ListView, 
-  ScrollView, 
-  View, 
+  ListView,
+  ScrollView,
+  View,
   Text,
   RefreshControl,
 } from 'react-native';
@@ -61,7 +61,7 @@ export default class RecommendationsScene extends Component {
     this.attributes.currentHeights.length = this.props.recommendations.length;
   }
 
-  onToggleRecommendation(recID, isExpanded) {
+  onToggleExpanded(recID, isExpanded) {
     this.attributes.isExpanded[recID] = isExpanded;
   }
 
@@ -96,16 +96,16 @@ export default class RecommendationsScene extends Component {
     this.attributes.currentBottom = bottom;
 
     let isSinglePage = heights[current] <= this.state.viewportHeight;
-    let isScrollingWithin = isScrollingDown ? 
+    let isScrollingWithin = isScrollingDown ?
       (scrollOffset < eBottom + adjustedMargin && scrollOffset > top) :
       (scrollOffset > top - adjustedMargin && scrollOffset < eBottom) ;
 
-    if (!isSinglePage && isScrollingWithin) 
+    if (!isSinglePage && isScrollingWithin)
       return this.checkOverscroll(isScrollingDown);
 
     let edge = isScrollingDown ? top : eBottom;
     this._scrollTo(edge);
-    
+
   }
 
   checkOverscroll(isScrollingDown) {
@@ -156,12 +156,12 @@ export default class RecommendationsScene extends Component {
 
     return (
       <Swipeable key={recommendation.id} {...swipeableProps}>
-        <ExpandableRecommendation 
+        <ExpandableRecommendation
           key={recommendation.id}
           onLayout={this.updateRowHeight.bind(this, rowID)}
           collapsedHeight={this.state.viewportHeight}
           recommendation={recommendation}
-          onToggleRecommendation={this.onToggleRecommendation.bind(this)}
+          onToggleExpanded={this.onToggleExpanded.bind(this)}
           onRecommendationAction={this.props.onRecommendationAction}
           shouldStartDetailed={shouldStartDetailed}/>
       </Swipeable>
@@ -179,11 +179,11 @@ export default class RecommendationsScene extends Component {
   }
 
   render() {
-    let emptyState = 
+    let emptyState =
       <Text style={styles.emptyText}>No recommendations available.</Text>;
 
     return (
-      !this.props.recommendations.length ? 
+      !this.props.recommendations.length ?
       /* Empty view */
       <View style={[styles.flexFull, styles.empty]}>{emptyState}</View> :
 
@@ -202,16 +202,16 @@ export default class RecommendationsScene extends Component {
         removeClippedSubviews={true}
         onScrollBeginDrag={() => this.attributes.isDragging = true}
         onScrollEndDrag={this.checkShouldDoPaging.bind(this)} // This shit ain't even documented, yo!
-        onChangeVisibleRows={this.checkOverscroll.bind(this, null)} 
-        refreshControl={ 
+        onChangeVisibleRows={this.checkOverscroll.bind(this, null)}
+        refreshControl={
           <RefreshControl
             refreshing={this.state.isRefreshing}
             onRefresh={this.onRefresh.bind(this)}
             tintColor="#000000"
             title="Fetching new recommendations..."
             colors={['#ff0000', '#00ff00', '#0000ff']}
-            progressBackgroundColor="#ffff00"/>}
-      />
+            progressBackgroundColor="#ffff00"/>
+          }/>
     );
   }
 }
@@ -223,7 +223,7 @@ class ExpandableRecommendation extends Component {
     recommendation: React.PropTypes.object,
     onRecommendationAction: React.PropTypes.func,
     collapsedHeight: React.PropTypes.number,
-    onToggleRecommendation: React.PropTypes.func,
+    onToggleExpanded: React.PropTypes.func,
     shouldStartDetailed: React.PropTypes.bool,
   };
 
@@ -232,11 +232,11 @@ class ExpandableRecommendation extends Component {
     recHeight: 0,
   };
 
-  onToggleRecommendation(isRecDetailed) {
+  onToggleExpanded(isRecDetailed) {
     if (this.state.isRecDetailed !== isRecDetailed)
       this.setState({isRecDetailed});
 
-    this.props.onToggleRecommendation && this.props.onToggleRecommendation(this.props.recommendation.id, this.state.isRecDetailed);
+    this.props.onToggleExpanded && this.props.onToggleExpanded(this.props.recommendation.id, this.state.isRecDetailed);
   }
 
   onRecLayout(event) {
@@ -252,17 +252,17 @@ class ExpandableRecommendation extends Component {
     if (contentHeight > minHeight && this.state.cardHeight !== contentHeight)
       this.setState({cardHeight: contentHeight});
     else if (this.state.cardHeight !== minHeight)
-      this.setState({cardHeight: minHeight}) 
+      this.setState({cardHeight: minHeight})
   }
 
   render() {
-    let shouldFill = !this.state.isRecDetailed || this.state.recHeight < this.props.collapsedHeight;
+    let shouldFill = this.state.recHeight < this.props.collapsedHeight;
 
     return (
       <View style={shouldFill && {height: this.props.collapsedHeight}} onLayout={this.props.onLayout}>
         <Card style={shouldFill && styles.flexFull}>
           <Recommendation
-            willToggle={this.onToggleRecommendation.bind(this)}
+            willToggle={this.onToggleExpanded.bind(this)}
             onLayout={this.onRecLayout.bind(this)}
             recommendation={this.props.recommendation}
             onRecommendationAction={this.props.onRecommendationAction}

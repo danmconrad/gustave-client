@@ -1,8 +1,17 @@
 'use strict';
 
-import React, {Component, View, Image, MapView, InteractionManager, TouchableOpacity, Linking} from 'react-native';
+import React, {
+  Component,
+  Image,
+  InteractionManager,
+  Linking,
+  MapView,
+  StyleSheet,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+
 import Icon from 'react-native-vector-icons/MaterialIcons'
-import styles from './styles';
 
 const DEFAULT_DELTA = 0.01;
 const DELTA_COEF = 2.5;
@@ -19,7 +28,7 @@ const MAP_CONFIG = {
   pitchEnabled: false,
 };
 
-export default class RecMap extends Component {
+export default class Map extends Component {
 
   static propTypes = {
     lat: React.PropTypes.number,
@@ -31,8 +40,8 @@ export default class RecMap extends Component {
     lng: 0,
   };
 
-  state = { 
-    position: null, 
+  state = {
+    position: null,
   };
 
   attributes = {
@@ -74,7 +83,7 @@ export default class RecMap extends Component {
       };
 
     this.attributes.cached = this.renderMapView();
-    
+
     // This prevents interference with scrolling the detail view
     InteractionManager.runAfterInteractions(() => {
       if (this.attributes.mounted)
@@ -134,10 +143,10 @@ export default class RecMap extends Component {
 
   renderPlaceholder() {
     return (
-      <View style={styles.placeholderContainer}>
+      <View style={[styles.placeholderContainer, this.props.style]}>
         <Image
           style={styles.placeholderImage}
-          source={require('../../../assets/defaultMapView.jpg')} />
+          source={require('../../assets/defaultMapView.jpg')} />
       </View>
     );
   }
@@ -146,13 +155,13 @@ export default class RecMap extends Component {
     let partial = this.attributes.cached || this.renderPlaceholder();
 
     return (
-      <TouchableOpacity
+      <TouchableOpacity style={this.props.style}
           onPress={this.onGetDirections.bind(this)}
           activeOpacity={0.6}>
 
         <View>
           {partial}
-          <Icon name={'directions'} style={[styles.directionIcon, !this.state.position && styles.altDirectionIcon]} size={30} />
+          <Icon name={'directions'} style={[styles.directionIcon]} size={30} />
         </View>
 
       </TouchableOpacity>
@@ -164,3 +173,38 @@ export default class RecMap extends Component {
     Linking.openURL(url);
   }
 }
+
+var styles = StyleSheet.create({
+  map: {
+    marginBottom: 16,
+    height: 100,
+    overflow: 'hidden',
+  },
+
+  placeholderContainer: {
+    height: 100,
+    marginBottom: 16,
+    backgroundColor: '#eee',
+  },
+
+  placeholderImage: {
+    height: 100,
+    width: null,
+  },
+
+  directionIcon: {
+    textAlign: 'right',
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    right: 0,
+    left: 0,
+    margin: 8,
+    color: 'rgba(44,7,44,0.75)',
+    backgroundColor: 'rgba(0,0,0,0)'
+  },
+
+  altDirectionIcon: {
+    color: '#fff',
+  },
+});

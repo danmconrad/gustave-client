@@ -1,47 +1,51 @@
 'use strict';
 
-import React, {Component, StyleSheet, View, Animated, Easing} from 'react-native';
+import React, {Component, StyleSheet, View} from 'react-native';
 
 export default class Card extends Component {
 
   static propTypes = {
     style: View.propTypes.style,
   };
-
-  state = {
-    enterAnimation: new Animated.Value(0),
-  };
-
-  componentDidMount() {
-    Animated.timing(this.state.enterAnimation, {
-      toValue: 1,
-      duration: 250,
-      easing: Easing.elastic(1),
-    }).start();
-  }
-
   render() {
-
-    let transforms = [{scale: this.state.enterAnimation}, ];
-
     return (
-      <Animated.View style={[styles.card, this.props.style, {transform: transforms, opacity: this.state.enterAnimation}]}>
-        {this.props.children}
-      </Animated.View>
+      <View style={[styles.cardOne, this.props.style]}>
+        <View style={[styles.cardTwo]}>
+          <View style={[styles.cardThree]}>
+            {this.props.children}
+          </View>
+        </View>
+      </View>
     );
   }
 }
 
 
 var styles = StyleSheet.create({
-  card: {
-    margin: 4,
-    borderRadius: 8,
+
+  cardOne: {
+    margin: 7,
+    borderRadius: 6,
     borderWidth: 1,
-    borderColor: '#666',
+    borderColor: '#c9c9c999',
     backgroundColor: '#fff',
-    // Shadow won't work with overflow hidden, which is required for jumbotron image corners to match card corner
-    overflow: 'hidden'
+    overflow: 'hidden',
+  },
+
+  cardTwo: {
+    borderWidth: 1,
+    borderRadius: 5,
+    borderColor: '#c9c9c9cc',
+    flex: 1,
+    overflow: 'hidden',
+  },
+
+  cardThree: {
+    borderWidth: 1,
+    borderRadius: 4,
+    borderColor: '#c9c9c9',
+    flex: 1,
+    overflow: 'hidden',
   },
 
 });
