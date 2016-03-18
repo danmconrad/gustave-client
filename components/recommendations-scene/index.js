@@ -50,11 +50,12 @@ export default class RecommendationsScene extends Component {
       dy: 0,
       vy: 0,
       lastOffset: 0,
+      dragOffset: 0,
       auto: null,
+      isDragging: false,
     },
     currentTop: 0,
     currentBottom: 0,
-    isDragging: false,
   };
 
   rowHasChanged(r1, r2) {
@@ -87,37 +88,37 @@ export default class RecommendationsScene extends Component {
     else if (isAutoScrolling)
       return;
 
-    if (this.attributes.isDragging)
+    if (this.attributes.scroll.isDragging)
       return (this.attributes.scroll.dy = scrollOffset - this.attributes.scroll.lastOffset);
 
     this.attributes.scroll.lastOffset = scrollOffset;
-    this.checkOverscroll(); 
+    this.checkOverscroll();
   }
 
   onScrollBeginDrag(event) {
-    this.attributes.isDragging = true
+    this.attributes.scroll.isDragging = true
     this.attributes.scroll.dy = 0;
     this.attributes.scroll.auto = null;
   }
 
   onScrollEndDrag(event) {
-    this.attributes.scroll.lastOffset = event.nativeEvent.contentOffset.y;
+    this.attributes.scroll.isDragging = false;
+    this.attributes.scroll.dragOffset = event.nativeEvent.contentOffset.y;
     this.attributes.scroll.vy = event.nativeEvent.velocity.y;
     this.checkShouldDoPaging(event);
-    this.attributes.isDragging = false;
   }
 
   checkShouldDoPaging() {
     if (this.state.isRefreshing) return;
 
-    let scrollOffset = this.attributes.scroll.lastOffset;
+    let scrollOffset = this.attributes.scroll.dragOffset;
     let contentLength = this.refs['recList'].scrollProperties.contentLength;
     let lastEffectiveBottom = contentLength - this.state.viewportHeight;
 
     if (scrollOffset < 0 || scrollOffset > lastEffectiveBottom) return;
 
     let scrollVelocity = this.attributes.scroll.vy;
-    let isScrollingDown = this.attributes.scroll.dy > 0 || scrollVelocity > 0;
+    let isScrollingDown = this.attributes.scroll.dy > 0;
     let margin = this.state.viewportHeight * 0.25;
     let adjustedMargin = Math.abs(scrollVelocity) > 1 ? 0 : margin;
 
@@ -165,7 +166,7 @@ export default class RecommendationsScene extends Component {
 
     if (!isScrollingExpanded) return;
 
-    let isScrollingDown = this.attributes.scroll.dy > 0 || this.attributes.scroll.vy > 0;
+    let isScrollingDown = this.attributes.scroll.dy > 0;
     let eBottom = this.attributes.currentBottom - this.state.viewportHeight;
 
     if (isScrollingDown && scrollOffset > eBottom)
