@@ -101,12 +101,19 @@ export default class RecommendationsScene extends Component {
     this.attributes.currentBottom = bottom;
 
     let isSinglePage = heights[current] <= this.state.viewportHeight;
+
     let isScrollingWithin = isScrollingDown ?
       (scrollOffset < eBottom + adjustedMargin && scrollOffset > top) :
       (scrollOffset > top - adjustedMargin && scrollOffset < eBottom) ;
 
     if (!isSinglePage && isScrollingWithin)
       return this.checkOverscroll(isScrollingDown);
+
+    let isFirst = current === 0;
+    let isLast = !isFirst && current === heights.length - 1;
+
+    if ((isScrollingDown && isLast) || (!isScrollingDown && isFirst))
+      return;
 
     let edge = isScrollingDown ? top : eBottom;
     this._scrollTo(edge);

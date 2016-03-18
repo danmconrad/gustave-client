@@ -429,7 +429,7 @@
 						TestTargetID = 13B07F861A680F5B00A75B9A;
 					};
 					13B07F861A680F5B00A75B9A = {
-						DevelopmentTeam = GBWJG85DQB;
+						DevelopmentTeam = L7KDXZ9PH9;
 					};
 				};
 			};
@@ -726,7 +726,7 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 9.2;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
 				OTHER_LDFLAGS = "-ObjC";
-				PRODUCT_BUNDLE_IDENTIFIER = "gustave-conrad-dev";
+				PRODUCT_BUNDLE_IDENTIFIER = "gustave-fml";
 				PRODUCT_NAME = gustave;
 				PROVISIONING_PROFILE = "";
 				TARGETED_DEVICE_FAMILY = 1;
@@ -750,7 +750,7 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 9.2;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
 				OTHER_LDFLAGS = "-ObjC";
-				PRODUCT_BUNDLE_IDENTIFIER = "gustave-conrad-dev";
+				PRODUCT_BUNDLE_IDENTIFIER = "gustave-fml";
 				PRODUCT_NAME = gustave;
 				PROVISIONING_PROFILE = "";
 				TARGETED_DEVICE_FAMILY = 1;

@@ -68,9 +68,9 @@ export default class Recommendation extends Component {
     LayoutAnimation.easeInEaseOut(() => {
       this.refs['content'].refs['stagger'].runAnimations();
       InteractionManager.clearInteractionHandle(handle);
-      this.props.didToggleExpanded && this.props.didToggleExpanded(this.state.isExpanded);
     });
     this.setState({isExpanded: !this.state.isExpanded});
+    this.props.didToggleExpanded && this.props.didToggleExpanded(this.state.isExpanded);
   }
 
   render() {
