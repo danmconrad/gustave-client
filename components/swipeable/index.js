@@ -20,7 +20,7 @@ const IS_SWIPING_OPACITY = 0.8;
 const RESET_TO_ZERO_PROPS = {
   toValue: 0,
   duration: 250,
-  easing: Easing.elastic(1),
+  easing: Easing.easeInEaseOut,
 };
 
 

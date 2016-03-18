@@ -46,7 +46,12 @@ export default class RecommendationsScene extends Component {
   attributes = {
     currentHeights: [],
     isExpanded: {},
-    lastOffset: 0,
+    scroll: {
+      dy: 0,
+      vy: 0,
+      lastOffset: 0,
+      auto: null,
+    },
     currentTop: 0,
     currentBottom: 0,
     isDragging: false,
@@ -71,30 +76,52 @@ export default class RecommendationsScene extends Component {
   }
 
   onScroll(event) {
-    if (this.attributes.isDragging || event.nativeEvent.contentOffset.y < 0) return;
-    this.checkOverscroll();
-  }
+    let scrollOffset = event.nativeEvent.contentOffset.y;
+    if (scrollOffset < 0) return; // Handled by refresh control
 
-  checkShouldDoPaging(event) {
-    if (this.state.isRefreshing) return;
+    let isAutoScrolling = Number.isFinite(this.attributes.scroll.auto);
+    let hasReachedAutoTarget = isAutoScrolling && scrollOffset === this.attributes.scroll.auto;
 
-    let contentOffset = event.nativeEvent.contentOffset,
-        velocity = event.nativeEvent.velocity;
-
-    if (contentOffset < 0) return;
+    if (hasReachedAutoTarget)
+      this.attributes.scroll.auto === null;
+    else if (isAutoScrolling)
+      return;
 
     if (this.attributes.isDragging)
-      this.attributes.isDragging = false;
+      return (this.attributes.scroll.dy = scrollOffset - this.attributes.scroll.lastOffset);
 
-    let scrollOffset = contentOffset.y,
-        scrollVelocity = velocity && velocity.y || 0,
-        isScrollingDown = this.attributes.lastOffset < scrollOffset,
-        heights = this.attributes.currentHeights,
-        margin = this.state.viewportHeight * 0.25,
-        adjustedMargin = Math.abs(scrollVelocity) > 1 ? 0 : margin;
+    this.attributes.scroll.lastOffset = scrollOffset;
+    this.checkOverscroll(); 
+  }
 
-    this.attributes.lastOffset = scrollOffset;
+  onScrollBeginDrag(event) {
+    this.attributes.isDragging = true
+    this.attributes.scroll.dy = 0;
+    this.attributes.scroll.auto = null;
+  }
 
+  onScrollEndDrag(event) {
+    this.attributes.scroll.lastOffset = event.nativeEvent.contentOffset.y;
+    this.attributes.scroll.vy = event.nativeEvent.velocity.y;
+    this.checkShouldDoPaging(event);
+    this.attributes.isDragging = false;
+  }
+
+  checkShouldDoPaging() {
+    if (this.state.isRefreshing) return;
+
+    let scrollOffset = this.attributes.scroll.lastOffset;
+    let contentLength = this.refs['recList'].scrollProperties.contentLength;
+    let lastEffectiveBottom = contentLength - this.state.viewportHeight;
+
+    if (scrollOffset < 0 || scrollOffset > lastEffectiveBottom) return;
+
+    let scrollVelocity = this.attributes.scroll.vy;
+    let isScrollingDown = this.attributes.scroll.dy > 0 || scrollVelocity > 0;
+    let margin = this.state.viewportHeight * 0.25;
+    let adjustedMargin = Math.abs(scrollVelocity) > 1 ? 0 : margin;
+
+    let heights = this.attributes.currentHeights;
     let current = 0, top = 0, bottom = 0, eBottom = 0, threshold = 0;
 
     for (let i = 0, len = heights.length; i < len; i++) {
@@ -112,38 +139,34 @@ export default class RecommendationsScene extends Component {
     this.attributes.currentTop = top;
     this.attributes.currentBottom = bottom;
 
-    let isSinglePage = heights[current] <= this.state.viewportHeight;
+    let isExpanded = heights[current] > this.state.viewportHeight;
 
-    let isScrollingWithin = isScrollingDown ?
-      (scrollOffset < eBottom + adjustedMargin && scrollOffset > top) :
-      (scrollOffset > top - adjustedMargin && scrollOffset < eBottom) ;
+    let isScrollingWithin = isExpanded && 
+      (isScrollingDown ? (scrollOffset < eBottom + adjustedMargin && scrollOffset > top) :
+        (scrollOffset > top - adjustedMargin && scrollOffset < eBottom));
 
-    if (!isSinglePage && isScrollingWithin)
-      return this.checkOverscroll(isScrollingDown);
-
-    let isFirst = current === 0;
-    let isLast = !isFirst && current === heights.length - 1;
-
-    if ((isScrollingDown && isLast) || (!isScrollingDown && isFirst))
-      return;
+    if (isScrollingWithin)
+      return this.checkOverscroll();
 
     let edge = isScrollingDown ? top : eBottom;
     this._scrollTo(edge);
-
   }
 
-  checkOverscroll(isScrollingDown) {
-    if (this.attributes.isDragging || this.state.isRefreshing) return;
+  checkOverscroll() {
+    if (this.state.isRefreshing) return;
+
+    let scrollOffset = this.attributes.scroll.lastOffset;
+    let contentLength = this.refs['recList'].scrollProperties.contentLength;
+    let lastEffectiveBottom = contentLength - this.state.viewportHeight;
+
+    if (scrollOffset < 0 || scrollOffset > lastEffectiveBottom) return;
 
     let isScrollingExpanded = this.attributes.currentBottom - this.attributes.currentTop > this.state.viewportHeight;
+
     if (!isScrollingExpanded) return;
 
-    let scrollOffset = this.refs['recList'].scrollProperties.offset,
-        eBottom = this.attributes.currentBottom - this.state.viewportHeight;
-
-    if (contentOffset < 0) return;
-
-    isScrollingDown = isScrollingDown !== null ? isScrollingDown : this.attributes.lastOffset < scrollOffset;
+    let isScrollingDown = this.attributes.scroll.dy > 0 || this.attributes.scroll.vy > 0;
+    let eBottom = this.attributes.currentBottom - this.state.viewportHeight;
 
     if (isScrollingDown && scrollOffset > eBottom)
       this._scrollTo(eBottom);
@@ -152,7 +175,7 @@ export default class RecommendationsScene extends Component {
   }
 
   _scrollTo(y, animated) {
-    this.attributes.lastOffset = y;
+    this.attributes.scroll.auto = y;
     this.refs['recList'].scrollTo({y, animated});
   }
 
@@ -223,10 +246,9 @@ export default class RecommendationsScene extends Component {
         canCancelContentTouches={true}
         directionalLockEnabled={true}
         initialListSize={1}
-        onChangeVisibleRows={this.checkOverscroll.bind(this, null)}
         onScroll={this.onScroll.bind(this)}
-        onScrollBeginDrag={() => this.attributes.isDragging = true}
-        onScrollEndDrag={this.checkShouldDoPaging.bind(this)} // This shit ain't even documented, yo!
+        onScrollBeginDrag={this.onScrollBeginDrag.bind(this)}
+        onScrollEndDrag={this.onScrollEndDrag.bind(this)}
         pageSize={1}
         refreshControl={ 
           <RefreshControl
@@ -238,7 +260,7 @@ export default class RecommendationsScene extends Component {
             progressBackgroundColor="#ffff00"/>
         }
         removeClippedSubviews={true}
-        scrollEventThrottle={100}
+        scrollEventThrottle={1}
         scrollRenderAheadDistance={this.state.viewportHeight}
         showsVerticalScrollIndicator={false}
       />
