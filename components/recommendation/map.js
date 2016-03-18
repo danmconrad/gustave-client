@@ -1,4 +1,3 @@
-'use strict';
 
 import React, {
   Component,
@@ -11,12 +10,13 @@ import React, {
   View,
 } from 'react-native';
 
-import Icon from 'react-native-vector-icons/MaterialIcons'
+import Icon from 'react-native-vector-icons/MaterialIcons';
+import defaultImage from '../../assets/defaultMapView.jpg';
 
-const DEFAULT_DELTA = 0.01;
+const DEFAULT_DELTA = 0.05;
 const DELTA_COEF = 2.5;
 const GEO_OPTIONS = {
-  enableHighAccuracy: true,
+  enableHighAccuracy: false,
   timeout: 20000,
   maximumAge: 1000
 };
@@ -31,13 +31,10 @@ const MAP_CONFIG = {
 export default class Map extends Component {
 
   static propTypes = {
-    lat: React.PropTypes.number,
-    lng: React.PropTypes.number,
-  };
-
-  static defaultProps = {
-    lat: 0,
-    lng: 0,
+    lat: React.PropTypes.number.isRequired,
+    lng: React.PropTypes.number.isRequired,
+    address: React.PropTypes.string.isRequired,
+    location: React.PropTypes.string,
   };
 
   state = {
@@ -45,75 +42,56 @@ export default class Map extends Component {
   };
 
   attributes = {
+    isMounted: false,
     watchID: null,
-    mounted: false,
-    cached: null,
   };
 
-  // Lifecycle
-  componentWillMount() {
-    this.attributes.mounted = true;
-    InteractionManager.runAfterInteractions(this.getInitialPosition.bind(this));
-  }
-
   componentWillUnmount() {
-    this.attributes.mounted = false;
-    navigator.geolocation.clearWatch(this.attributes.watchID);
+    this.attributes.isMounted = false;
+    // navigator.geolocation.clearWatch(this.attributes.watchID);
   }
 
-  getInitialPosition() {
-    if (!this.attributes.mounted) return;
-
-    let onGetPosition = this.onGetPosition.bind(this);
-    navigator.geolocation
-      .getCurrentPosition(onGetPosition, this.onGeoError, GEO_OPTIONS);
-
-    this.attributes.watchID = navigator.geolocation.watchPosition(onGetPosition);
+  componentDidMount() {
+    this.attributes.isMounted = true;
+    // InteractionManager.runAfterInteractions(() => this._setupGeolocation());
   }
 
-  onGeoError(){}
-
-  onGetPosition(position) {
-    if (!this.attributes.mounted) return;
-
-    // Intentional rerender prevention, we'll forceUpdate() after interactions
-    this.state.position = {
-        lat: position.coords.latitude,
-        lng: position.coords.longitude
-      };
-
-    this.attributes.cached = this.renderMapView();
-
-    // This prevents interference with scrolling the detail view
-    InteractionManager.runAfterInteractions(() => {
-      if (this.attributes.mounted)
-       this.forceUpdate();
-    });
+  _setupGeolocation() {
+    navigator.geolocation.getCurrentPosition(this._onPositionUpdate.bind(this), this._onGeoError.bind(this), GEO_OPTIONS);
+    this.attributes.watchID = navigator.geolocation.getCurrentPosition(this._onPositionUpdate.bind(this), this._onGeoError.bind(this), GEO_OPTIONS);
   }
 
-  // Rendering
-  renderMapView() {
-    let region = this.getMapRegion(this.state.position);
-    let annotations = this.getMapAnnotations();
+  _onGeoError () {
+    if (!this.attributes.isMounted) return;
+    this.setState({position: null});
+  }
+ 
+  _onPositionUpdate({coords: {latitude: lat, longitude: lng }}) {
+    if (!this.attributes.isMounted) return;
 
-    return (
-      <MapView
-          style={styles.map}
-          region={region}
-          annotations={annotations}
-          {...MAP_CONFIG} />
+    InteractionManager.runAfterInteractions(() => 
+      this.setState({
+        position: {lat, lng},
+      })
     );
+
+    /* TODO 
+      For some reason this throws an error, looks to be bug with React Native
+      
+      let region = this._getMapRegion();    
+      this.refs['map'].setNativeProps({region});
+    */
   }
 
-  getMapAnnotations(){
-    return [{
-      latitude: this.props.lat,
-      longitude: this.props.lng,
-    }];
+  _getDefaultMapRegion() {
+    return {
+      latitude: this.props.lat, longitude: this.props.lng, 
+      latitudeDelta: DEFAULT_DELTA, longitudeDelta: DEFAULT_DELTA
+    };
   }
 
-  getMapRegion(position){
-    if (!position) return this.getDefaultRegion();
+  _getMapRegion(position) {
+    if (!position) return this._getDefaultMapRegion();
 
     let placeLat = this.props.lat;
     let placeLng = this.props.lng;
@@ -124,87 +102,47 @@ export default class Map extends Component {
     let latitudeDelta = Math.abs(placeLat - position.lat) * DELTA_COEF;
     let longitudeDelta = Math.abs(placeLng - position.lng) * DELTA_COEF;
 
-    return {
-      latitude,
-      longitude,
-      latitudeDelta,
-      longitudeDelta,
-    };
+    latitude = latitude + latitudeDelta * 0.1; // y-axis shift for pins
+
+    return {latitude, longitude, latitudeDelta, longitudeDelta};
   }
 
-  getDefaultRegion(){
-    return {
-      latitude: this.props.lat,
-      longitude: this.props.lng,
-      latitudeDelta: DEFAULT_DELTA,
-      longitudeDelta: DEFAULT_DELTA,
-    };
-  }
-
-  renderPlaceholder() {
-    return (
-      <View style={[styles.placeholderContainer, this.props.style]}>
-        <Image
-          style={styles.placeholderImage}
-          source={require('../../assets/defaultMapView.jpg')} />
-      </View>
-    );
+  _getDirections () {
+    let url = `http://maps.apple.com/?daddr=${this.props.address}`;
+    Linking.openURL(url);
   }
 
   render() {
-    let partial = this.attributes.cached || this.renderPlaceholder();
+    // let realMap = 
+    //   <MapView ref="map" style={[styles.map, this.props.style]}
+    //     region={this._getMapRegion(this.state.position)}
+    //     annotations={[{ latitude: this.props.lat, longitude: this.props.lng}]}
+    //     {...MAP_CONFIG} />;
 
-    return (
-      <TouchableOpacity style={this.props.style}
-          onPress={this.onGetDirections.bind(this)}
-          activeOpacity={0.6}>
+    let placeholder = 
+      <Image style={[styles.map, this.props.style]} source={defaultImage}>
+        <Icon name={'directions'} style={[styles.directionIcon]} size={30} />
+      </Image> ;
 
-        <View>
-          {partial}
-          <Icon name={'directions'} style={[styles.directionIcon]} size={30} />
-        </View>
-
+    return(
+      <TouchableOpacity onPress={this._getDirections.bind(this)} style={this.props.style}>
+        {placeholder}
       </TouchableOpacity>
     );
-  }
-
-  onGetDirections(){
-    let url = `http://maps.apple.com/?daddr=${this.props.address}`;
-    Linking.openURL(url);
   }
 }
 
 var styles = StyleSheet.create({
+
   map: {
-    marginBottom: 16,
-    height: 100,
-    overflow: 'hidden',
-  },
 
-  placeholderContainer: {
-    height: 100,
-    marginBottom: 16,
-    backgroundColor: '#eee',
-  },
-
-  placeholderImage: {
-    height: 100,
-    width: null,
   },
 
   directionIcon: {
-    textAlign: 'right',
-    position: 'absolute',
-    top: 0,
-    bottom: 0,
-    right: 0,
-    left: 0,
+    alignSelf: 'flex-end',
     margin: 8,
-    color: 'rgba(44,7,44,0.75)',
+    color: 'rgba(44,7,44, 0.75)',
     backgroundColor: 'rgba(0,0,0,0)'
   },
 
-  altDirectionIcon: {
-    color: '#fff',
-  },
 });

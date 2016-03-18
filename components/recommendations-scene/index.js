@@ -46,10 +46,16 @@ export default class RecommendationsScene extends Component {
   attributes = {
     currentHeights: [],
     isExpanded: {},
-    lastOffset: 0,
+    scroll: {
+      dy: 0,
+      vy: 0,
+      lastOffset: 0,
+      dragOffset: 0,
+      auto: null,
+      isDragging: false,
+    },
     currentTop: 0,
     currentBottom: 0,
-    isDragging: false,
   };
 
   rowHasChanged(r1, r2) {
@@ -61,23 +67,62 @@ export default class RecommendationsScene extends Component {
     this.attributes.currentHeights.length = this.props.recommendations.length;
   }
 
-  onToggleExpanded(recID, isExpanded) {
+  willToggleExpanded(recID, isExpanded) {
+    this._scrollTo(this.attributes.currentTop);
     this.attributes.isExpanded[recID] = isExpanded;
   }
 
-  checkShouldDoPaging(event) {
-    this.attributes.isDragging = false;
+  didToggleExpanded() {
+    this._scrollTo(this.attributes.currentTop, false);
+  }
+
+  onScroll(event) {
+    let scrollOffset = event.nativeEvent.contentOffset.y;
+    if (scrollOffset < 0) return; // Handled by refresh control
+
+    let isAutoScrolling = Number.isFinite(this.attributes.scroll.auto);
+    let hasReachedAutoTarget = isAutoScrolling && scrollOffset === this.attributes.scroll.auto;
+
+    if (hasReachedAutoTarget)
+      this.attributes.scroll.auto === null;
+    else if (isAutoScrolling)
+      return;
+
+    if (this.attributes.scroll.isDragging)
+      return (this.attributes.scroll.dy = scrollOffset - this.attributes.scroll.lastOffset);
+
+    this.attributes.scroll.lastOffset = scrollOffset;
+    this.checkOverscroll();
+  }
+
+  onScrollBeginDrag(event) {
+    this.attributes.scroll.isDragging = true
+    this.attributes.scroll.dy = 0;
+    this.attributes.scroll.auto = null;
+  }
+
+  onScrollEndDrag(event) {
+    this.attributes.scroll.isDragging = false;
+    this.attributes.scroll.dragOffset = event.nativeEvent.contentOffset.y;
+    this.attributes.scroll.vy = event.nativeEvent.velocity.y;
+    this.checkShouldDoPaging(event);
+  }
+
+  checkShouldDoPaging() {
     if (this.state.isRefreshing) return;
 
-    let scrollOffset = event.nativeEvent.contentOffset.y,
-        velocity = event.nativeEvent.velocity.y,
-        isScrollingDown = this.attributes.lastOffset < scrollOffset,
-        heights = this.attributes.currentHeights,
-        margin = this.state.viewportHeight * 0.25,
-        adjustedMargin = Math.abs(velocity) > 1 ? 0 : margin;
+    let scrollOffset = this.attributes.scroll.dragOffset;
+    let contentLength = this.refs['recList'].scrollProperties.contentLength;
+    let lastEffectiveBottom = contentLength - this.state.viewportHeight;
 
-    this.attributes.lastOffset = scrollOffset;
+    if (scrollOffset < 0 || scrollOffset > lastEffectiveBottom) return;
 
+    let scrollVelocity = this.attributes.scroll.vy;
+    let isScrollingDown = this.attributes.scroll.dy > 0;
+    let margin = this.state.viewportHeight * 0.25;
+    let adjustedMargin = Math.abs(scrollVelocity) > 1 ? 0 : margin;
+
+    let heights = this.attributes.currentHeights;
     let current = 0, top = 0, bottom = 0, eBottom = 0, threshold = 0;
 
     for (let i = 0, len = heights.length; i < len; i++) {
@@ -95,29 +140,34 @@ export default class RecommendationsScene extends Component {
     this.attributes.currentTop = top;
     this.attributes.currentBottom = bottom;
 
-    let isSinglePage = heights[current] <= this.state.viewportHeight;
-    let isScrollingWithin = isScrollingDown ?
-      (scrollOffset < eBottom + adjustedMargin && scrollOffset > top) :
-      (scrollOffset > top - adjustedMargin && scrollOffset < eBottom) ;
+    let isExpanded = heights[current] > this.state.viewportHeight;
 
-    if (!isSinglePage && isScrollingWithin)
-      return this.checkOverscroll(isScrollingDown);
+    let isScrollingWithin = isExpanded && 
+      (isScrollingDown ? (scrollOffset < eBottom + adjustedMargin && scrollOffset > top) :
+        (scrollOffset > top - adjustedMargin && scrollOffset < eBottom));
+
+    if (isScrollingWithin)
+      return this.checkOverscroll();
 
     let edge = isScrollingDown ? top : eBottom;
     this._scrollTo(edge);
-
   }
 
-  checkOverscroll(isScrollingDown) {
-    if (this.attributes.isDragging || this.state.isRefreshing) return;
+  checkOverscroll() {
+    if (this.state.isRefreshing) return;
+
+    let scrollOffset = this.attributes.scroll.lastOffset;
+    let contentLength = this.refs['recList'].scrollProperties.contentLength;
+    let lastEffectiveBottom = contentLength - this.state.viewportHeight;
+
+    if (scrollOffset < 0 || scrollOffset > lastEffectiveBottom) return;
 
     let isScrollingExpanded = this.attributes.currentBottom - this.attributes.currentTop > this.state.viewportHeight;
+
     if (!isScrollingExpanded) return;
 
-    let scrollOffset = this.refs['recList'].scrollProperties.offset,
-        eBottom = this.attributes.currentBottom - this.state.viewportHeight;
-
-    isScrollingDown = isScrollingDown !== null ? isScrollingDown : this.attributes.lastOffset < scrollOffset;
+    let isScrollingDown = this.attributes.scroll.dy > 0;
+    let eBottom = this.attributes.currentBottom - this.state.viewportHeight;
 
     if (isScrollingDown && scrollOffset > eBottom)
       this._scrollTo(eBottom);
@@ -126,7 +176,7 @@ export default class RecommendationsScene extends Component {
   }
 
   _scrollTo(y, animated) {
-    this.attributes.lastOffset = y;
+    this.attributes.scroll.auto = y;
     this.refs['recList'].scrollTo({y, animated});
   }
 
@@ -156,14 +206,14 @@ export default class RecommendationsScene extends Component {
 
     return (
       <Swipeable key={recommendation.id} {...swipeableProps}>
-        <ExpandableRecommendation
-          key={recommendation.id}
-          onLayout={this.updateRowHeight.bind(this, rowID)}
+        <ExpandableRecommendation key={recommendation.id}
           collapsedHeight={this.state.viewportHeight}
-          recommendation={recommendation}
-          onToggleExpanded={this.onToggleExpanded.bind(this)}
+          onLayout={this.updateRowHeight.bind(this, rowID)}
           onRecommendationAction={this.props.onRecommendationAction}
-          shouldStartDetailed={shouldStartDetailed}/>
+          recommendation={recommendation}
+          shouldStartDetailed={shouldStartDetailed}
+          willToggleExpanded={this.willToggleExpanded.bind(this)}
+          didToggleExpanded={this.didToggleExpanded.bind(this)}/>
       </Swipeable>
     );
   }
@@ -191,19 +241,17 @@ export default class RecommendationsScene extends Component {
       <ListView ref='recList'
         style={[styles.flexFull, this.props.style]}
         onLayout={(event) => this.setState({viewportHeight: event.nativeEvent.layout.height})}
-        dataSource={this.state.datasource.cloneWithRows(this.props.recommendations)}
+        // Guard on datasource prevents render jank... we make sure we've measured the viewport before loading the recs
+        dataSource={this.state.datasource.cloneWithRows(this.state.viewportHeight && this.props.recommendations)}
         renderRow={this.renderRow.bind(this)}
         canCancelContentTouches={true}
         directionalLockEnabled={true}
-        showsVerticalScrollIndicator={false}
         initialListSize={1}
+        onScroll={this.onScroll.bind(this)}
+        onScrollBeginDrag={this.onScrollBeginDrag.bind(this)}
+        onScrollEndDrag={this.onScrollEndDrag.bind(this)}
         pageSize={1}
-        scrollRenderAheadDistance={this.state.viewportHeight}
-        removeClippedSubviews={true}
-        onScrollBeginDrag={() => this.attributes.isDragging = true}
-        onScrollEndDrag={this.checkShouldDoPaging.bind(this)} // This shit ain't even documented, yo!
-        onChangeVisibleRows={this.checkOverscroll.bind(this, null)}
-        refreshControl={
+        refreshControl={ 
           <RefreshControl
             refreshing={this.state.isRefreshing}
             onRefresh={this.onRefresh.bind(this)}
@@ -211,7 +259,12 @@ export default class RecommendationsScene extends Component {
             title="Fetching new recommendations..."
             colors={['#ff0000', '#00ff00', '#0000ff']}
             progressBackgroundColor="#ffff00"/>
-          }/>
+        }
+        removeClippedSubviews={true}
+        scrollEventThrottle={1}
+        scrollRenderAheadDistance={this.state.viewportHeight}
+        showsVerticalScrollIndicator={false}
+      />
     );
   }
 }
@@ -219,54 +272,49 @@ export default class RecommendationsScene extends Component {
 class ExpandableRecommendation extends Component {
 
   static propTypes = {
+    collapsedHeight: React.PropTypes.number.isRequired,
     onLayout: React.PropTypes.func,
-    recommendation: React.PropTypes.object,
     onRecommendationAction: React.PropTypes.func,
-    collapsedHeight: React.PropTypes.number,
-    onToggleExpanded: React.PropTypes.func,
+    willToggleExpanded: React.PropTypes.func,
+    recommendation: React.PropTypes.object.isRequired,
     shouldStartDetailed: React.PropTypes.bool,
+    didToggleExpanded: React.PropTypes.func,
   };
 
   state = {
-    isRecDetailed: false,
+    isRecExpanded: this.props.shouldStartDetailed || false,
     recHeight: 0,
   };
 
-  onToggleExpanded(isRecDetailed) {
-    if (this.state.isRecDetailed !== isRecDetailed)
-      this.setState({isRecDetailed});
+  willToggleExpanded(isRecExpanded) {
+    this.props.willToggleExpanded && this.props.willToggleExpanded(this.props.recommendation.id, isRecExpanded);
+  }
 
-    this.props.onToggleExpanded && this.props.onToggleExpanded(this.props.recommendation.id, this.state.isRecDetailed);
+  didToggleExpanded(isRecExpanded) {
+    if (this.state.isRecExpanded !== isRecExpanded)
+      this.setState({isRecExpanded});
+
+    this.props.didToggleExpanded && this.props.didToggleExpanded(isRecExpanded);
   }
 
   onRecLayout(event) {
     this.setState({recHeight: event.nativeEvent.layout.height});
   }
 
-  checkOverflow(event) {
-    if (!this.props.collapsedHeight) return;
-
-    let contentHeight = this.attributes.contentHeight;
-    let minHeight = this.props.minHeight;
-
-    if (contentHeight > minHeight && this.state.cardHeight !== contentHeight)
-      this.setState({cardHeight: contentHeight});
-    else if (this.state.cardHeight !== minHeight)
-      this.setState({cardHeight: minHeight})
-  }
-
   render() {
-    let shouldFill = this.state.recHeight < this.props.collapsedHeight;
+    let shouldFill = !this.state.isRecExpanded || this.state.recHeight < this.props.collapsedHeight;
+    let height = {height: shouldFill ? this.props.collapsedHeight : null};
 
     return (
-      <View style={shouldFill && {height: this.props.collapsedHeight}} onLayout={this.props.onLayout}>
-        <Card style={shouldFill && styles.flexFull}>
+      <View style={height} onLayout={this.props.onLayout}>
+        <Card style={styles.flexFull}>
           <Recommendation
-            willToggle={this.onToggleExpanded.bind(this)}
             onLayout={this.onRecLayout.bind(this)}
-            recommendation={this.props.recommendation}
             onRecommendationAction={this.props.onRecommendationAction}
-            shouldStartDetailed={this.props.shouldStartDetailed}/>
+            recommendation={this.props.recommendation}
+            shouldStartDetailed={this.props.shouldStartDetailed}
+            willToggleExpanded={this.willToggleExpanded.bind(this)}
+            didToggleExpanded={this.didToggleExpanded.bind(this)}/>
         </Card>
       </View>
     );
@@ -276,6 +324,10 @@ class ExpandableRecommendation extends Component {
 var styles = StyleSheet.create({
   flexFull: {
     flex: 1,
+  },
+
+  flexNone: {
+    flex: 0,
   },
 
   empty: {

@@ -221,14 +221,14 @@ export function dismissUserRecommendation(userId, recommendationId) {
   user.saved = user.saved.filter(eventId => eventId !== recommendationId);
 }
 
-export function saveUserRecommendation(userId, recommendationId) {
+export function addUserSavedRecommendation(userId, recommendationId) {
   let user = getUser(userId);
 
   if (!user.saved.includes(recommendationId))
     user.saved.push(recommendationId);
 }
 
-export function removeSavedUserRecommendation(userId, recommendationId) {
+export function removeUserSavedRecommendation(userId, recommendationId) {
   let user = getUser(userId);
   let index = user.saved.indexOf(recommendationId);
 
