@@ -81,6 +81,8 @@ export default class RecommendationsScene extends Component {
     let contentOffset = event.nativeEvent.contentOffset,
         velocity = event.nativeEvent.velocity;
 
+    if (contentOffset < 0) return;
+
     if (this.attributes.isDragging)
       this.attributes.isDragging = false;
 
@@ -138,6 +140,8 @@ export default class RecommendationsScene extends Component {
 
     let scrollOffset = this.refs['recList'].scrollProperties.offset,
         eBottom = this.attributes.currentBottom - this.state.viewportHeight;
+
+    if (contentOffset < 0) return;
 
     isScrollingDown = isScrollingDown !== null ? isScrollingDown : this.attributes.lastOffset < scrollOffset;
 
