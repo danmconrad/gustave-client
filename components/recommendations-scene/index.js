@@ -70,16 +70,26 @@ export default class RecommendationsScene extends Component {
     this._scrollTo(this.attributes.currentTop, false);
   }
 
+  onScroll(event) {
+    if (this.attributes.isDragging || event.nativeEvent.contentOffset.y < 0) return;
+    this.checkOverscroll();
+  }
+
   checkShouldDoPaging(event) {
-    this.attributes.isDragging = false;
     if (this.state.isRefreshing) return;
 
-    let scrollOffset = event.nativeEvent.contentOffset.y,
-        velocity = event.nativeEvent.velocity.y,
+    let contentOffset = event.nativeEvent.contentOffset,
+        velocity = event.nativeEvent.velocity;
+
+    if (this.attributes.isDragging)
+      this.attributes.isDragging = false;
+
+    let scrollOffset = contentOffset.y,
+        scrollVelocity = velocity && velocity.y || 0,
         isScrollingDown = this.attributes.lastOffset < scrollOffset,
         heights = this.attributes.currentHeights,
         margin = this.state.viewportHeight * 0.25,
-        adjustedMargin = Math.abs(velocity) > 1 ? 0 : margin;
+        adjustedMargin = Math.abs(scrollVelocity) > 1 ? 0 : margin;
 
     this.attributes.lastOffset = scrollOffset;
 
@@ -210,6 +220,7 @@ export default class RecommendationsScene extends Component {
         directionalLockEnabled={true}
         initialListSize={1}
         onChangeVisibleRows={this.checkOverscroll.bind(this, null)}
+        onScroll={this.onScroll.bind(this)}
         onScrollBeginDrag={() => this.attributes.isDragging = true}
         onScrollEndDrag={this.checkShouldDoPaging.bind(this)} // This shit ain't even documented, yo!
         pageSize={1}
@@ -223,6 +234,7 @@ export default class RecommendationsScene extends Component {
             progressBackgroundColor="#ffff00"/>
         }
         removeClippedSubviews={true}
+        scrollEventThrottle={100}
         scrollRenderAheadDistance={this.state.viewportHeight}
         showsVerticalScrollIndicator={false}
       />
