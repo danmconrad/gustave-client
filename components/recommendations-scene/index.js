@@ -1,13 +1,17 @@
 'use strict';
 
 import React, {
+  Animated,
   Component,
-  StyleSheet,
+  Easing,
+  InteractionManager,
+  LayoutAnimation,
   ListView,
-  ScrollView,
-  View,
-  Text,
   RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
 } from 'react-native';
 
 import Icon from 'react-native-vector-icons/MaterialIcons';
@@ -37,7 +41,7 @@ export default class RecommendationsScene extends Component {
 
   state = {
     datasource: new ListView.DataSource({
-      rowHasChanged: this.rowHasChanged.bind(this),
+      rowHasChanged: (r1, r2) => r1 !== r2,
     }),
     viewportHeight: 0,
     isRefreshing: false,
@@ -56,15 +60,16 @@ export default class RecommendationsScene extends Component {
     },
     currentTop: 0,
     currentBottom: 0,
+    current: 0,
   };
 
-  rowHasChanged(r1, r2) {
-    return r1.id !== r2.id;
+  updateRowHeight(rowID, event) {
+    let height = event.nativeEvent.layout.height;
+    this.attributes.currentHeights[Number(rowID)] = height;
   }
 
-  updateRowHeight(rowID, event) {
-    this.attributes.currentHeights[Number(rowID)] = event.nativeEvent.layout.height;
-    this.attributes.currentHeights.length = this.props.recommendations.length;
+  onRemoveRow(rowID) {
+    this.attributes.currentHeights.splice(Number(rowID), 1);
   }
 
   willToggleExpanded(recID, isExpanded) {
@@ -83,10 +88,13 @@ export default class RecommendationsScene extends Component {
     let isAutoScrolling = Number.isFinite(this.attributes.scroll.auto);
     let hasReachedAutoTarget = isAutoScrolling && scrollOffset === this.attributes.scroll.auto;
 
+    if (isAutoScrolling && !hasReachedAutoTarget) return;
+
     if (hasReachedAutoTarget)
       this.attributes.scroll.auto === null;
-    else if (isAutoScrolling)
-      return;
+
+    if (this.attributes.scroll.autoHandle)
+      this.attributes.scroll.autoHandle = null;
 
     if (this.attributes.scroll.isDragging)
       return (this.attributes.scroll.dy = scrollOffset - this.attributes.scroll.lastOffset);
@@ -139,6 +147,7 @@ export default class RecommendationsScene extends Component {
 
     this.attributes.currentTop = top;
     this.attributes.currentBottom = bottom;
+    this.attributes.current = current;
 
     let isExpanded = heights[current] > this.state.viewportHeight;
 
@@ -176,27 +185,32 @@ export default class RecommendationsScene extends Component {
   }
 
   _scrollTo(y, animated) {
+    if (!this.refs['recList'])
+      return;
+
     this.attributes.scroll.auto = y;
     this.refs['recList'].scrollTo({y, animated});
   }
 
-  didSwipeLeft(recommendationID) {
-    this._scrollTo(this.attributes.currentTop, false);
+  didSwipeLeft(recommendationID, rowID) { 
+    let animationConfig = LayoutAnimation.create(200, LayoutAnimation.Types.linear, LayoutAnimation.Properties.opacity);
+    LayoutAnimation.configureNext(animationConfig);
+
     this.context.database.dismissUserRecommendation(this.context.user.id, recommendationID);
     this.props.onRecommendationAction && this.props.onRecommendationAction();
   }
 
-  didSwipeRight(recommendationID) {
-    this.didSwipeLeft(recommendationID);
-  }
-
   renderRow(recommendation, sectionID, rowID) {
-
     let swipeableProps = {
-      rightSwipeEdge: <View/>,
-      leftSwipeEdge: <View/>,
-      onSwipeRight: this.didSwipeRight.bind(this, recommendation.id),
-      onSwipeLeft: this.didSwipeLeft.bind(this, recommendation.id),
+      /* 
+        We infer user feedback rather than ask for it explictly, b/c behavioral studies have shown
+        that asking a user to give explicit feedback results in users attempting to provide OBJECTIVE
+        feedback rather than SUBJECTIVE enjoyment. 
+
+        See e.g., Netflix
+      */
+      leftSwipeEdge: <Icon name="close" size={60} style={{color: 'darkred'}}/>,
+      onSwipeLeft: this.didSwipeLeft.bind(this, recommendation.id, rowID),
       // This next bit is faster than trigger a rerender
       onSwipeStart: () => this.refs['recList'].setNativeProps({canCancelContentTouches: false}),
       onSwipeEnd: () => this.refs['recList'].setNativeProps({canCancelContentTouches: true}),
@@ -208,12 +222,13 @@ export default class RecommendationsScene extends Component {
       <Swipeable key={recommendation.id} {...swipeableProps}>
         <ExpandableRecommendation key={recommendation.id}
           collapsedHeight={this.state.viewportHeight}
+          didToggleExpanded={this.didToggleExpanded.bind(this)}
           onLayout={this.updateRowHeight.bind(this, rowID)}
           onRecommendationAction={this.props.onRecommendationAction}
+          onRemove={this.onRemoveRow.bind(this, rowID)}
           recommendation={recommendation}
           shouldStartDetailed={shouldStartDetailed}
-          willToggleExpanded={this.willToggleExpanded.bind(this)}
-          didToggleExpanded={this.didToggleExpanded.bind(this)}/>
+          willToggleExpanded={this.willToggleExpanded.bind(this)}/>
       </Swipeable>
     );
   }
@@ -228,6 +243,11 @@ export default class RecommendationsScene extends Component {
     this._scrollTo(0);
   }
 
+  handleListViewLayout(event) {
+    LayoutAnimation.easeInEaseOut();
+    this.setState({viewportHeight: event.nativeEvent.layout.height});
+  }
+
   render() {
     let emptyState =
       <Text style={styles.emptyText}>No recommendations available.</Text>;
@@ -240,8 +260,8 @@ export default class RecommendationsScene extends Component {
       /* Default view */
       <ListView ref='recList'
         style={[styles.flexFull, this.props.style]}
-        onLayout={(event) => this.setState({viewportHeight: event.nativeEvent.layout.height})}
-        // Guard on datasource prevents render jank... we make sure we've measured the viewport before loading the recs
+        onLayout={this.handleListViewLayout.bind(this)}
+        // Guard on datasource prevents render until proper height can be set
         dataSource={this.state.datasource.cloneWithRows(this.state.viewportHeight && this.props.recommendations)}
         renderRow={this.renderRow.bind(this)}
         canCancelContentTouches={true}
@@ -279,12 +299,17 @@ class ExpandableRecommendation extends Component {
     recommendation: React.PropTypes.object.isRequired,
     shouldStartDetailed: React.PropTypes.bool,
     didToggleExpanded: React.PropTypes.func,
+    onRemove: React.PropTypes.func,
   };
 
   state = {
     isRecExpanded: this.props.shouldStartDetailed || false,
     recHeight: 0,
   };
+
+  componentWillUnmount() {
+    this.props.onRemove && this.props.onRemove();
+  }
 
   willToggleExpanded(isRecExpanded) {
     this.props.willToggleExpanded && this.props.willToggleExpanded(this.props.recommendation.id, isRecExpanded);
@@ -322,6 +347,12 @@ class ExpandableRecommendation extends Component {
 }
 
 var styles = StyleSheet.create({
+
+  zero: {
+    flex: 0,
+    height: 0,
+  },
+
   flexFull: {
     flex: 1,
   },

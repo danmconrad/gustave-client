@@ -258,7 +258,7 @@ export default class Swipeable extends Component {
           <Edge
             containerHeight={this.state.edgeHeight}
             position={'left'}
-            thickness={this.state.left}>
+            width={this.state.left}>
             {this.props.rightSwipeEdge}
           </Edge>
         }
@@ -267,7 +267,7 @@ export default class Swipeable extends Component {
           <Edge
             containerHeight={this.state.edgeHeight}
             position={'right'}
-            thickness={this.state.right}>
+            width={this.state.right}>
             {this.props.leftSwipeEdge}
           </Edge>
         }
