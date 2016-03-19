@@ -14,6 +14,7 @@ import React, {
   View,
 } from 'react-native';
 
+import _ from 'lodash';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
 import Card from '../card';
@@ -50,6 +51,8 @@ export default class RecommendationsScene extends Component {
   attributes = {
     currentHeights: [],
     isExpanded: {},
+    isRemoved: {},
+    removeAnimations: {},
     scroll: {
       dy: 0,
       vy: 0,
@@ -66,10 +69,13 @@ export default class RecommendationsScene extends Component {
   updateRowHeight(rowID, event) {
     let height = event.nativeEvent.layout.height;
     this.attributes.currentHeights[Number(rowID)] = height;
+    this.checkCurrent();
   }
 
-  onRemoveRow(rowID) {
-    this.attributes.currentHeights.splice(Number(rowID), 1);
+  onRemoveRow(rowID, recommendationID) {
+    this.attributes.isRemoved[recommendationID] = true;
+    this.attributes.currentHeights[Number(rowID)] = 0;
+    this.checkCurrent();
   }
 
   willToggleExpanded(recID, isExpanded) {
@@ -90,8 +96,12 @@ export default class RecommendationsScene extends Component {
 
     if (isAutoScrolling && !hasReachedAutoTarget) return;
 
-    if (hasReachedAutoTarget)
+    if (hasReachedAutoTarget) {
+      this.attributes.scroll.autoCallback && this.attributes.scroll.autoCallback();
       this.attributes.scroll.auto === null;
+      this.attributes.scroll.autoCallback = null;
+      this.checkCurrent();
+    }
 
     if (this.attributes.scroll.autoHandle)
       this.attributes.scroll.autoHandle = null;
@@ -114,6 +124,46 @@ export default class RecommendationsScene extends Component {
     this.attributes.scroll.dragOffset = event.nativeEvent.contentOffset.y;
     this.attributes.scroll.vy = event.nativeEvent.velocity.y;
     this.checkShouldDoPaging(event);
+  }
+
+  _scrollTo(y, animated = true, callback) {
+    if (!this.refs['recList'])
+      return;
+
+    if (animated)
+      this.attributes.scroll.auto = y;
+    if (animated && callback)
+      this.attributes.scroll.autoCallback = callback;
+
+    this.refs['recList'].scrollTo({y, animated});
+
+    if (!animated)
+      this.checkCurrent();
+  }
+
+  checkCurrent() {
+    let scrollOffset = this.refs['recList'].scrollProperties.offset;
+    let heights = this.attributes.currentHeights;
+    let current = 0, top = 0, bottom = 0, eBottom = 0, threshold = 0;
+
+    for (let i = 0, len = heights.length; i < len; i++) {
+      top = bottom; // Top of this card is bottom of last card
+      bottom = bottom + heights[i];
+      eBottom = bottom - this.state.viewportHeight;
+      current = i;
+
+      if (scrollOffset >= top && scrollOffset < bottom)
+        break;
+    }
+
+    this.attributes.currentTop = top;
+    this.attributes.currentBottom = bottom;
+    this.attributes.current = current;
+  }
+
+  currentIsLastActiveRow() {
+    let lastActiveRow = _.findLastIndex(this.props.recommendations, (rec) => !this.attributes.isRemoved[rec.id]);
+    return this.attributes.current === lastActiveRow;
   }
 
   checkShouldDoPaging() {
@@ -184,23 +234,62 @@ export default class RecommendationsScene extends Component {
       this._scrollTo(this.attributes.currentTop);
   }
 
-  _scrollTo(y, animated) {
-    if (!this.refs['recList'])
-      return;
 
-    this.attributes.scroll.auto = y;
-    this.refs['recList'].scrollTo({y, animated});
-  }
+  /* 
+    We intentionally do not request an updated list from the server with every swipe.
+    Instead, we scroll to an available recommendation and then stop rendering the 
+    dismissed recommendation until next explicit update.
+  */
+  didSwipeLeft(rowID, recommendationID) { 
+    let scrollTo = this.attributes.currentBottom;
+    let resetTo = this.attributes.currentBottom - this.state.viewportHeight;
 
-  didSwipeLeft(recommendationID, rowID) { 
-    let animationConfig = LayoutAnimation.create(200, LayoutAnimation.Types.linear, LayoutAnimation.Properties.opacity);
-    LayoutAnimation.configureNext(animationConfig);
+    if (this.currentIsLastActiveRow()) {
+      scrollTo = this.attributes.currentTop - this.state.viewportHeight;
+      resetTo = scrollTo;
+    }
 
-    this.context.database.dismissUserRecommendation(this.context.user.id, recommendationID);
-    this.props.onRecommendationAction && this.props.onRecommendationAction();
+    Animated.sequence([
+      Animated.timing(this.attributes.removeAnimations[recommendationID], {
+        toValue: 1.2,
+        duration: 200,
+        easing: Easing.inOut(Easing.quad)
+      }),
+      Animated.timing(this.attributes.removeAnimations[recommendationID], {
+        toValue: 1,
+        duration: 400,
+        easing: Easing.inOut(Easing.quad)
+      }),
+      Animated.timing(this.attributes.removeAnimations[recommendationID], {
+        toValue: 1.2,
+        duration: 200,
+        easing: Easing.inOut(Easing.quad)
+      }),
+      Animated.timing(this.attributes.removeAnimations[recommendationID], {
+        toValue: 1,
+        duration: 400,
+        easing: Easing.inOut(Easing.quad)
+      }),
+    ]).start(() => {
+      this.onRemoveRow(rowID, recommendationID);
+      this.context.database.dismissUserRecommendation(this.context.user.id, recommendationID);
+      this._scrollTo(scrollTo, true, () => {
+        this.forceUpdate();
+        if(Number.isFinite(resetTo))
+          this._scrollTo(resetTo, false);
+      });
+    });
   }
 
   renderRow(recommendation, sectionID, rowID) {
+
+    if (this.attributes.isRemoved[recommendation.id])
+      return (null);
+
+    this.attributes.removeAnimations[recommendation.id] = new Animated.Value(1);
+
+    let scale = {transform: [{scale: this.attributes.removeAnimations[recommendation.id]}]};
+
     let swipeableProps = {
       /* 
         We infer user feedback rather than ask for it explictly, b/c behavioral studies have shown
@@ -209,8 +298,8 @@ export default class RecommendationsScene extends Component {
 
         See e.g., Netflix
       */
-      leftSwipeEdge: <Icon name="close" size={60} style={{color: 'darkred'}}/>,
-      onSwipeLeft: this.didSwipeLeft.bind(this, recommendation.id, rowID),
+      leftSwipeEdge: <Animated.View style={scale}><Icon name="close" size={60} style={{color: 'darkred'}}/></Animated.View>,
+      onSwipeLeft: this.didSwipeLeft.bind(this, rowID, recommendation.id),
       // This next bit is faster than trigger a rerender
       onSwipeStart: () => this.refs['recList'].setNativeProps({canCancelContentTouches: false}),
       onSwipeEnd: () => this.refs['recList'].setNativeProps({canCancelContentTouches: true}),
@@ -225,7 +314,7 @@ export default class RecommendationsScene extends Component {
           didToggleExpanded={this.didToggleExpanded.bind(this)}
           onLayout={this.updateRowHeight.bind(this, rowID)}
           onRecommendationAction={this.props.onRecommendationAction}
-          onRemove={this.onRemoveRow.bind(this, rowID)}
+          onRemove={this.onRemoveRow.bind(this, rowID, recommendation.id)}
           recommendation={recommendation}
           shouldStartDetailed={shouldStartDetailed}
           willToggleExpanded={this.willToggleExpanded.bind(this)}/>
