@@ -282,6 +282,12 @@ export default class RecommendationsScene extends Component {
     });
   }
 
+  _setSwipeEdgeOffset(rowID) {
+      let rowOffset = this.attributes.scroll.lastOffset - this.attributes.currentTop;
+      let animOffset = rowOffset * 2; // To keep it centered, it must grow twice as fast
+      this.attributes.removeAnimations[rowID].height.setOffset(animOffset);
+  }
+
   renderRow(recommendation, sectionID, rowID) {
 
     if (this.attributes.isRemoved[recommendation.id])
@@ -289,10 +295,14 @@ export default class RecommendationsScene extends Component {
 
     this.attributes.removeAnimations[rowID] = {
       scale: new Animated.Value(1),
-      offset: new Animated.Value(0),
+      height: new Animated.Value(this.state.viewportHeight),
     };
 
-    let anim = {transform: [{scale: this.attributes.removeAnimations[rowID].scale}, {translateY: this.attributes.removeAnimations[rowID].offset}]};
+    // Rather than translate, we could try adjusting the height... 
+    // height should increase at 2x offset
+    // not sure if this would have side effects
+
+    let anim = {transform: [{scale: this.attributes.removeAnimations[rowID].scale}], height: this.attributes.removeAnimations[rowID].height};
 
     let swipeableProps = {
       /* 
@@ -302,10 +312,14 @@ export default class RecommendationsScene extends Component {
 
         See e.g., Netflix
       */
-      leftSwipeEdge: <Animated.View style={anim}><Icon name="close" size={60} style={{color: 'darkred'}}/></Animated.View>,
+      leftSwipeEdge: <Icon name="close" size={60} style={{color: 'darkred'}}/>,
       onSwipeLeft: this.didSwipeLeft.bind(this, rowID, recommendation.id),
+      edgeStyle: anim,
       // This next bit is faster than trigger a rerender
-      onSwipeStart: () => this.refs['recList'].setNativeProps({canCancelContentTouches: false}),
+      onSwipeStart: () => {
+        this._setSwipeEdgeOffset(rowID);
+        this.refs['recList'].setNativeProps({canCancelContentTouches: false});
+      },
       onSwipeEnd: () => this.refs['recList'].setNativeProps({canCancelContentTouches: true}),
     };
 

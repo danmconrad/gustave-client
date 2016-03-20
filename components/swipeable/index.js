@@ -27,19 +27,20 @@ const RESET_TO_ZERO_PROPS = {
 export default class Swipeable extends Component {
 
   static propTypes = {
+    edgeStyle: Animated.View.propTypes.style,
+    leftSwipeEdge: React.PropTypes.node,
+    onLayout: React.PropTypes.func,
+    onSwipeEnd: React.PropTypes.func,
     onSwipeLeft: React.PropTypes.func,
     onSwipeRight: React.PropTypes.func,
-    leftSwipeEdge: React.PropTypes.node,
-    rightSwipeEdge: React.PropTypes.node,
     onSwipeStart: React.PropTypes.func,
-    onSwipeEnd: React.PropTypes.func,
-    pinThresholdLeft: React.PropTypes.number,
-    pinThresholdRight: React.PropTypes.number,
     pinOffsetLeft: React.PropTypes.number,
     pinOffsetRight: React.PropTypes.number,
+    pinThresholdLeft: React.PropTypes.number,
+    pinThresholdRight: React.PropTypes.number,
+    rightSwipeEdge: React.PropTypes.node,
     snapBack: React.PropTypes.bool,
     style: View.propTypes.style,
-    onLayout: React.PropTypes.func,
   };
 
   static defaultProps = {
@@ -63,8 +64,11 @@ export default class Swipeable extends Component {
     let layout = event.nativeEvent.layout;
     this.attributes.width = layout.width;
     this.attributes.height = layout.height;
-    if (this.props.onLayout) 
-      this.props.onLayout(event);
+
+    if (this.state.edgeHeight !== layout.height)
+      this.setState({edgeHeight: layout.height});
+
+    this.props.onLayout && this.props.onLayout(event);
   }
 
   componentWillUnmount() {
@@ -235,30 +239,22 @@ export default class Swipeable extends Component {
     Animated.timing(this.state.offsetX, {...RESET_TO_ZERO_PROPS, toValue}).start();
   }
 
-  setEdgeHeight(event) {
-    let {height: edgeHeight} = event.nativeEvent.layout;
-    if (edgeHeight !== this.state.edgeHeight) {
-      this.setState({edgeHeight});
-    }
-  }
-
   render() {
 
     let swipeAnimations = {
       opacity: this.state.isSwiping && IS_SWIPING_OPACITY || 1,
-      transform: [
-        {translateX: this.state.offsetX},
-      ],
+      transform: [{translateX: this.state.offsetX}],
     };
 
     return (
-      <View onLayout={this.setEdgeHeight.bind(this)} style={this.props.style}>
+      <View style={this.props.style}>
 
         {this.props.rightSwipeEdge &&
           <Edge
             containerHeight={this.state.edgeHeight}
             position={'left'}
-            width={this.state.left}>
+            width={this.state.left}
+            style={this.props.edgeStyle}>
             {this.props.rightSwipeEdge}
           </Edge>
         }
@@ -267,7 +263,8 @@ export default class Swipeable extends Component {
           <Edge
             containerHeight={this.state.edgeHeight}
             position={'right'}
-            width={this.state.right}>
+            width={this.state.right}
+            style={this.props.edgeStyle}>
             {this.props.leftSwipeEdge}
           </Edge>
         }
