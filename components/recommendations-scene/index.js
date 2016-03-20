@@ -284,8 +284,7 @@ export default class RecommendationsScene extends Component {
 
   _setSwipeEdgeOffset(rowID) {
       let rowOffset = this.attributes.scroll.lastOffset - this.attributes.currentTop;
-      let animOffset = rowOffset * 2; // To keep it centered, it must grow twice as fast
-      this.attributes.removeAnimations[rowID].height.setOffset(animOffset);
+      this.attributes.removeAnimations[rowID].height.setValue(rowOffset);
   }
 
   renderRow(recommendation, sectionID, rowID) {
@@ -295,14 +294,14 @@ export default class RecommendationsScene extends Component {
 
     this.attributes.removeAnimations[rowID] = {
       scale: new Animated.Value(1),
-      height: new Animated.Value(this.state.viewportHeight),
+      height: new Animated.Value(0),
     };
 
     // Rather than translate, we could try adjusting the height... 
     // height should increase at 2x offset
     // not sure if this would have side effects
 
-    let anim = {transform: [{scale: this.attributes.removeAnimations[rowID].scale}], height: this.attributes.removeAnimations[rowID].height};
+    let anim = {transform: [{scale: this.attributes.removeAnimations[rowID].scale}], marginTop: this.attributes.removeAnimations[rowID].height, height: this.state.viewportHeight};
 
     let swipeableProps = {
       /* 
