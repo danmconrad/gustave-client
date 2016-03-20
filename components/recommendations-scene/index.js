@@ -247,22 +247,22 @@ export default class RecommendationsScene extends Component {
     Animated.sequence([
       Animated.timing(this.attributes.removeAnimations[rowID].scale, {
         toValue: 1.2,
-        duration: 200,
+        duration: 150,
         easing: Easing.inOut(Easing.quad)
       }),
       Animated.timing(this.attributes.removeAnimations[rowID].scale, {
         toValue: 1,
-        duration: 400,
+        duration: 300,
         easing: Easing.inOut(Easing.quad)
       }),
       Animated.timing(this.attributes.removeAnimations[rowID].scale, {
         toValue: 1.2,
-        duration: 200,
+        duration: 150,
         easing: Easing.inOut(Easing.quad)
       }),
       Animated.timing(this.attributes.removeAnimations[rowID].scale, {
         toValue: 1,
-        duration: 400,
+        duration: 300,
         easing: Easing.inOut(Easing.quad)
       }),
     ]).start(() => {

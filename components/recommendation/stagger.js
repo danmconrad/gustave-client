@@ -45,7 +45,7 @@ export default class Stagger extends Component {
     let animations = this.attributes.animations.map((animation) => 
       Animated.timing(animation, {toValue: 1})
     );
-    Animated.stagger(50, animations).start(() => InteractionManager.clearInteractionHandle(handle));
+    Animated.stagger(25, animations).start(() => InteractionManager.clearInteractionHandle(handle));
   }
 
   render() {
