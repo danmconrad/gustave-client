@@ -59,6 +59,7 @@ export default class RecommendationsScene extends Component {
       lastOffset: 0,
       dragOffset: 0,
       auto: null,
+      autoCallback: null,
       isDragging: false,
     },
     currentTop: 0,
@@ -78,9 +79,11 @@ export default class RecommendationsScene extends Component {
     this.checkCurrent();
   }
 
-  willToggleExpanded(recID, isExpanded) {
-    this._scrollTo(this.attributes.currentTop);
-    this.attributes.isExpanded[recID] = isExpanded;
+  willToggleExpanded(recID, willBeExpanded) {
+    if (!willBeExpanded)
+      this._scrollTo(this.attributes.currentTop);
+
+    this.attributes.isExpanded[recID] = willBeExpanded;
   }
 
   didToggleExpanded() {
@@ -91,26 +94,27 @@ export default class RecommendationsScene extends Component {
     let scrollOffset = event.nativeEvent.contentOffset.y;
     if (scrollOffset < 0) return; // Handled by refresh control
 
+    if (this.attributes.scroll.isDragging)
+      return (this.attributes.scroll.dy = scrollOffset - this.attributes.scroll.lastOffset);
+    
+    this.attributes.scroll.lastOffset = scrollOffset;
+
     let isAutoScrolling = Number.isFinite(this.attributes.scroll.auto);
     let hasReachedAutoTarget = isAutoScrolling && scrollOffset === this.attributes.scroll.auto;
 
     if (isAutoScrolling && !hasReachedAutoTarget) return;
 
     if (hasReachedAutoTarget) {
-      this.attributes.scroll.autoCallback && this.attributes.scroll.autoCallback();
       this.attributes.scroll.auto === null;
+      this.attributes.scroll.autoCallback && this.attributes.scroll.autoCallback();
       this.attributes.scroll.autoCallback = null;
       this.checkCurrent();
     }
 
+    this.checkOverscroll();
+
     if (this.attributes.scroll.autoHandle)
       this.attributes.scroll.autoHandle = null;
-
-    if (this.attributes.scroll.isDragging)
-      return (this.attributes.scroll.dy = scrollOffset - this.attributes.scroll.lastOffset);
-
-    this.attributes.scroll.lastOffset = scrollOffset;
-    this.checkOverscroll();
   }
 
   onScrollBeginDrag(event) {
@@ -136,29 +140,39 @@ export default class RecommendationsScene extends Component {
       this.attributes.scroll.autoCallback = callback;
 
     this.refs['recList'].scrollTo({y, animated});
-
-    if (!animated)
-      this.checkCurrent();
   }
 
-  checkCurrent() {
-    let scrollOffset = this.refs['recList'].scrollProperties.offset;
+  checkCurrent(scrollOffset = this.attributes.scroll.lastOffset, isScrollingDown = true, margin = 0) {
+    if (this.state.isRefreshing || !this.refs['recList']) return;
+
     let heights = this.attributes.currentHeights;
-    let current = 0, top = 0, bottom = 0, eBottom = 0, threshold = 0;
+
+    let current, top, bottom, eBottom;
 
     for (let i = 0, len = heights.length; i < len; i++) {
-      top = bottom; // Top of this card is bottom of last card
-      bottom = bottom + heights[i];
-      eBottom = bottom - this.state.viewportHeight;
-      current = i;
 
-      if (scrollOffset >= top && scrollOffset < bottom)
+      let height = heights[i];
+
+      if (!height)
+        continue;
+
+      current = i;
+      top = bottom || 0;
+      bottom = top + height;
+      eBottom = bottom - this.state.viewportHeight;
+
+      if (!isScrollingDown && scrollOffset < bottom - margin)
+        break;
+
+      if (isScrollingDown && scrollOffset <= eBottom + margin)
         break;
     }
 
     this.attributes.currentTop = top;
     this.attributes.currentBottom = bottom;
     this.attributes.current = current;
+
+    return {current, top, bottom, eBottom};
   }
 
   currentIsLastActiveRow() {
@@ -166,10 +180,14 @@ export default class RecommendationsScene extends Component {
     return this.attributes.current === lastActiveRow;
   }
 
-  checkShouldDoPaging() {
-    if (this.state.isRefreshing) return;
+  hasActiveRows() {
+    return this.props.recommendations && _.some(this.props.recommendations, (rec) => !this.attributes.isRemoved[rec.id]);
+  }
 
-    let scrollOffset = this.attributes.scroll.dragOffset;
+  checkShouldDoPaging() {
+    if (this.state.isRefreshing || !this.refs['recList']) return;
+
+    let scrollOffset = this.attributes.scroll.lastOffset = this.attributes.scroll.dragOffset;
     let contentLength = this.refs['recList'].scrollProperties.contentLength;
     let lastEffectiveBottom = contentLength - this.state.viewportHeight;
 
@@ -177,35 +195,16 @@ export default class RecommendationsScene extends Component {
 
     let scrollVelocity = this.attributes.scroll.vy;
     let isScrollingDown = this.attributes.scroll.dy > 0;
-    let margin = this.state.viewportHeight * 0.25;
-    let adjustedMargin = Math.abs(scrollVelocity) > 1 ? 0 : margin;
 
-    let heights = this.attributes.currentHeights;
-    let current = 0, top = 0, bottom = 0, eBottom = 0, threshold = 0;
+    let margin = Math.abs(scrollVelocity) > 1 ? 0 : this.state.viewportHeight * 0.25;
 
-    for (let i = 0, len = heights.length; i < len; i++) {
-      top = bottom; // Top of this card is bottom of last card
-      bottom = bottom + heights[i];
-      eBottom = bottom - this.state.viewportHeight;
-      current = i;
+    let previous = this.attributes.current;
+    let {current, top, bottom, eBottom} = this.checkCurrent(scrollOffset, isScrollingDown, margin);
 
-      threshold = isScrollingDown ? (eBottom + adjustedMargin) : (bottom - adjustedMargin);
+    let isExpanded = this.attributes.currentHeights[current] > this.state.viewportHeight;
+    let isScrollingWithin = isExpanded && scrollOffset > top - margin.top && scrollOffset < eBottom - margin.bottom;
 
-      if (scrollOffset < threshold)
-        break;
-    }
-
-    this.attributes.currentTop = top;
-    this.attributes.currentBottom = bottom;
-    this.attributes.current = current;
-
-    let isExpanded = heights[current] > this.state.viewportHeight;
-
-    let isScrollingWithin = isExpanded && 
-      (isScrollingDown ? (scrollOffset < eBottom + adjustedMargin && scrollOffset > top) :
-        (scrollOffset > top - adjustedMargin && scrollOffset < eBottom));
-
-    if (isScrollingWithin)
+    if (isScrollingWithin || previous === current)
       return this.checkOverscroll();
 
     let edge = isScrollingDown ? top : eBottom;
@@ -213,17 +212,13 @@ export default class RecommendationsScene extends Component {
   }
 
   checkOverscroll() {
-    if (this.state.isRefreshing) return;
+    if (this.state.isRefreshing || !this.refs['recList']) return;
 
     let scrollOffset = this.attributes.scroll.lastOffset;
     let contentLength = this.refs['recList'].scrollProperties.contentLength;
     let lastEffectiveBottom = contentLength - this.state.viewportHeight;
 
     if (scrollOffset < 0 || scrollOffset > lastEffectiveBottom) return;
-
-    let isScrollingExpanded = this.attributes.currentBottom - this.attributes.currentTop > this.state.viewportHeight;
-
-    if (!isScrollingExpanded) return;
 
     let isScrollingDown = this.attributes.scroll.dy > 0;
     let eBottom = this.attributes.currentBottom - this.state.viewportHeight;
@@ -240,32 +235,32 @@ export default class RecommendationsScene extends Component {
     Instead, we scroll to an available recommendation and then stop rendering the 
     dismissed recommendation until next explicit update.
   */
-  didSwipeLeft(rowID, recommendationID) { 
-    let scrollTo = this.attributes.currentBottom;
-    let resetTo = this.attributes.currentBottom - this.state.viewportHeight;
+  didSwipeLeft(rowID, recommendationID) {
+    let scrollTo;
+    let scrollToLast;
 
-    if (this.currentIsLastActiveRow()) {
-      scrollTo = this.attributes.currentTop - this.state.viewportHeight;
-      resetTo = scrollTo;
-    }
+    if (this.currentIsLastActiveRow())
+      scrollToLast = this.attributes.currentTop - this.state.viewportHeight;
+    else
+      scrollTo = this.attributes.currentTop;
 
     Animated.sequence([
-      Animated.timing(this.attributes.removeAnimations[recommendationID], {
+      Animated.timing(this.attributes.removeAnimations[rowID].scale, {
         toValue: 1.2,
         duration: 200,
         easing: Easing.inOut(Easing.quad)
       }),
-      Animated.timing(this.attributes.removeAnimations[recommendationID], {
+      Animated.timing(this.attributes.removeAnimations[rowID].scale, {
         toValue: 1,
         duration: 400,
         easing: Easing.inOut(Easing.quad)
       }),
-      Animated.timing(this.attributes.removeAnimations[recommendationID], {
+      Animated.timing(this.attributes.removeAnimations[rowID].scale, {
         toValue: 1.2,
         duration: 200,
         easing: Easing.inOut(Easing.quad)
       }),
-      Animated.timing(this.attributes.removeAnimations[recommendationID], {
+      Animated.timing(this.attributes.removeAnimations[rowID].scale, {
         toValue: 1,
         duration: 400,
         easing: Easing.inOut(Easing.quad)
@@ -273,11 +268,17 @@ export default class RecommendationsScene extends Component {
     ]).start(() => {
       this.onRemoveRow(rowID, recommendationID);
       this.context.database.dismissUserRecommendation(this.context.user.id, recommendationID);
-      this._scrollTo(scrollTo, true, () => {
-        this.forceUpdate();
-        if(Number.isFinite(resetTo))
-          this._scrollTo(resetTo, false);
-      });
+      
+      // If there aren't any active rows, there ain't shit to scroll to
+      if (!this.hasActiveRows())
+        return this.forceUpdate();
+
+      if (Number.isFinite(scrollToLast))
+        return this._scrollTo(scrollToLast, true, () => this.forceUpdate());
+
+      this._scrollTo(scrollTo, false);
+      LayoutAnimation.easeInEaseOut();
+      this.forceUpdate();
     });
   }
 
@@ -286,9 +287,12 @@ export default class RecommendationsScene extends Component {
     if (this.attributes.isRemoved[recommendation.id])
       return (null);
 
-    this.attributes.removeAnimations[recommendation.id] = new Animated.Value(1);
+    this.attributes.removeAnimations[rowID] = {
+      scale: new Animated.Value(1),
+      offset: new Animated.Value(0),
+    };
 
-    let scale = {transform: [{scale: this.attributes.removeAnimations[recommendation.id]}]};
+    let anim = {transform: [{scale: this.attributes.removeAnimations[rowID].scale}, {translateY: this.attributes.removeAnimations[rowID].offset}]};
 
     let swipeableProps = {
       /* 
@@ -298,7 +302,7 @@ export default class RecommendationsScene extends Component {
 
         See e.g., Netflix
       */
-      leftSwipeEdge: <Animated.View style={scale}><Icon name="close" size={60} style={{color: 'darkred'}}/></Animated.View>,
+      leftSwipeEdge: <Animated.View style={anim}><Icon name="close" size={60} style={{color: 'darkred'}}/></Animated.View>,
       onSwipeLeft: this.didSwipeLeft.bind(this, rowID, recommendation.id),
       // This next bit is faster than trigger a rerender
       onSwipeStart: () => this.refs['recList'].setNativeProps({canCancelContentTouches: false}),
@@ -341,8 +345,9 @@ export default class RecommendationsScene extends Component {
     let emptyState =
       <Text style={styles.emptyText}>No recommendations available.</Text>;
 
+
     return (
-      !this.props.recommendations.length ?
+      !this.hasActiveRows() ?
       /* Empty view */
       <View style={[styles.flexFull, styles.empty]}>{emptyState}</View> :
 
@@ -456,7 +461,6 @@ var styles = StyleSheet.create({
   },
 
   emptyText: {
-    color: '#fff',
     textAlign: 'center',
   },
 });
