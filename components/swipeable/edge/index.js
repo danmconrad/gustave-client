@@ -1,47 +1,36 @@
 'use strict';
 
-// USE:
-// <Edge position={'top'} thickness={140} containerHeight={120} containerWidth={420}>
-//   <Menu>Derp</Menu>
-// </Edge>
-
-import React, {Component, Animated} from 'react-native';
+import React, {Component, StyleSheet, Animated, View} from 'react-native';
 import _ from 'lodash';
-
-import styles from './styles';
 
 export default class Edge extends Component {
 
   static propTypes = {
     containerHeight: React.PropTypes.number,
-    containerWidth: React.PropTypes.number,
-    thickness: React.PropTypes.oneOfType([
+    position: React.PropTypes.oneOf(['left', 'right']).isRequired,
+    width: React.PropTypes.oneOfType([
       React.PropTypes.number,
-      React.PropTypes.instanceOf(Animated.Value),
-    ]).isRequired,
-    position: React.PropTypes.oneOf(['top', 'bottom', 'left', 'right']).isRequired,
+      React.PropTypes.instanceOf(Animated.Value)
+      ]).isRequired,
   };
 
-  createStyles() {
-    let height, width;
-    let position = this.props.position;
-
-    if (position === 'top' || position === 'bottom') {
-      height = this.props.thickness;
-      width = this.props.containerWidth;
-    } else {
-      height = this.props.containerHeight;
-      width = this.props.thickness;
-    }
-
-    return { height, width }; 
-  }
-
   render() {
+    let size = {height: this.props.containerHeight, width: this.props.width};
+    let position = this.props.position === 'right' ? {right: 0} : {left: -1}
+
     return (
-      <Animated.View style={[styles[this.props.position], this.createStyles()]}>
+      <Animated.View style={[styles.edge, position, size, this.props.style]}>
         {this.props.children}
       </Animated.View>
     );
   }
 }
+
+var styles = StyleSheet.create({
+  edge: {
+    position: 'absolute',
+    alignItems:'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+});

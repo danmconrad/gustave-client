@@ -229,6 +229,11 @@ class RecommendationContent extends Component {
 
 var styles = StyleSheet.create({
 
+  zero: {
+    flex: 0,
+    height: 0,
+  },
+
   container: {
     backgroundColor: '#fff',
     justifyContent: 'space-between',
