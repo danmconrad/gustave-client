@@ -55,7 +55,6 @@ export default class RecommendationsScene extends Component {
     removeAnimations: {},
     scroll: {
       dy: 0,
-      vy: 0,
       lastOffset: 0,
       dragOffset: 0,
       auto: null,
@@ -70,7 +69,7 @@ export default class RecommendationsScene extends Component {
   updateRowHeight(rowID, event) {
     let height = event.nativeEvent.layout.height;
     this.attributes.currentHeights[Number(rowID)] = height;
-    this.checkCurrent();
+    this.checkCurrent(this.attributes.scroll.lastOffset);
   }
 
   removeRecommendation(recommendationID) {
@@ -89,48 +88,6 @@ export default class RecommendationsScene extends Component {
     this._scrollTo(this.attributes.currentTop, false);
   }
 
-  onScroll(event) {
-    let scrollOffset = event.nativeEvent.contentOffset.y;
-
-    if (this.attributes.scroll.isDragging)
-      return (this.attributes.scroll.dy = scrollOffset - this.attributes.scroll.lastOffset);
-    
-    this.attributes.scroll.lastOffset = scrollOffset;
-
-    let isScrollingDown = this.attributes.scroll.dy > 0;
-    if (!isScrollingDown && scrollOffset < 0) return;
-
-    let isAutoScrolling = Number.isFinite(this.attributes.scroll.auto);
-    let hasReachedAutoTarget = isAutoScrolling && scrollOffset === this.attributes.scroll.auto;
-
-    if (isAutoScrolling && !hasReachedAutoTarget) return;
-
-    if (hasReachedAutoTarget) {
-      this.attributes.scroll.auto === null;
-      this.attributes.scroll.autoCallback && this.attributes.scroll.autoCallback();
-      this.attributes.scroll.autoCallback = null;
-      this.checkCurrent();
-    }
-
-    this.checkOverscroll();
-
-    if (this.attributes.scroll.autoHandle)
-      this.attributes.scroll.autoHandle = null;
-  }
-
-  onScrollBeginDrag(event) {
-    this.attributes.scroll.isDragging = true
-    this.attributes.scroll.dy = 0;
-    this.attributes.scroll.auto = null;
-  }
-
-  onScrollEndDrag(event) {
-    this.attributes.scroll.isDragging = false;
-    this.attributes.scroll.dragOffset = event.nativeEvent.contentOffset.y;
-    this.attributes.scroll.vy = event.nativeEvent.velocity.y;
-    this.checkShouldDoPaging(event);
-  }
-
   _scrollTo(y, animated = true, callback) {
     if (!this.refs['recList'])
       return;
@@ -146,7 +103,7 @@ export default class RecommendationsScene extends Component {
     this.refs['recList'].scrollTo({y, animated});
 
     if (!animated)
-      this.checkCurrent();
+      this.checkCurrent(y);
 
     if (!animated) {
       this.attributes.scroll.auto = null;
@@ -155,7 +112,44 @@ export default class RecommendationsScene extends Component {
     }
   }
 
-  checkCurrent(scrollOffset = this.attributes.scroll.lastOffset, isScrollingDown = true, margin = 0) {
+  onScroll(event) {
+    let scrollOffset = event.nativeEvent.contentOffset.y;
+
+    if (this.attributes.scroll.isDragging)
+      return this.attributes.scroll.dy = scrollOffset - this.attributes.scroll.lastOffset;
+
+    let isScrollingDown = scrollOffset >= this.attributes.scroll.lastOffset;
+    this.attributes.scroll.lastOffset = scrollOffset;
+
+    if (!isScrollingDown && scrollOffset < 0) return;
+
+    let isAutoScrolling = Number.isFinite(this.attributes.scroll.auto);
+    let hasReachedAutoTarget = isAutoScrolling && isScrollingDown ? scrollOffset >= this.attributes.scroll.auto : scrollOffset <= this.attributes.scroll.auto;
+
+    if (isAutoScrolling && !hasReachedAutoTarget) return;
+
+    if (hasReachedAutoTarget) {
+      this.checkCurrent(this.attributes.scroll.auto, isScrollingDown);
+      this.attributes.scroll.auto === null;
+      this.attributes.scroll.autoCallback && this.attributes.scroll.autoCallback();
+      this.attributes.scroll.autoCallback = null;
+    }
+
+    this.checkOverscroll(scrollOffset, isScrollingDown, this.attributes.currentTop, this.attributes.currentBottom);
+  }
+
+  onScrollBeginDrag(event) {
+    this.attributes.scroll.isDragging = true
+    this.attributes.scroll.dy = 0;
+  }
+
+  onScrollEndDrag(event) {
+    this.attributes.scroll.isDragging = false;
+    this.attributes.scroll.dragOffset = event.nativeEvent.contentOffset.y;
+    this.checkShouldDoPaging(this.attributes.scroll.dragOffset, this.attributes.scroll.dy, event.nativeEvent.velocity.y);
+  }
+
+  checkCurrent(scrollOffset, isScrollingDown = true, margin = 0) {
     if (this.state.isRefreshing || !this.refs['recList']) return;
 
     let heights = this.attributes.currentHeights;
@@ -166,8 +160,8 @@ export default class RecommendationsScene extends Component {
 
       let height = heights[i];
 
-      // if (!height)
-      //   continue;
+      if (!height)
+        continue;
 
       current = i;
       top = bottom || 0;
@@ -184,7 +178,6 @@ export default class RecommendationsScene extends Component {
     this.attributes.currentTop = top;
     this.attributes.currentBottom = bottom;
     this.attributes.current = current;
-
     return {current, top, bottom, eBottom};
   }
 
@@ -197,17 +190,16 @@ export default class RecommendationsScene extends Component {
     return this.props.recommendations && _.some(this.props.recommendations, (rec) => !this.attributes.isRemoved[rec.id]);
   }
 
-  checkShouldDoPaging() {
+  checkShouldDoPaging(scrollOffset, dy, vy) {
     if (this.state.isRefreshing || !this.refs['recList']) return;
 
-    let scrollOffset = this.attributes.scroll.lastOffset = this.attributes.scroll.dragOffset;
     let contentLength = this.refs['recList'].scrollProperties.contentLength;
     let lastEffectiveBottom = contentLength - this.state.viewportHeight;
-    let isScrollingDown = this.attributes.scroll.dy > 0;
+    let isScrollingDown = dy > 0;
 
     if ((!isScrollingDown && scrollOffset < 0) || (isScrollingDown && scrollOffset > lastEffectiveBottom)) return;
 
-    let scrollVelocity = this.attributes.scroll.vy;
+    let scrollVelocity = vy;
 
     let margin = Math.abs(scrollVelocity) > 1 ? 0 : this.state.viewportHeight * 0.25;
 
@@ -218,28 +210,26 @@ export default class RecommendationsScene extends Component {
     let isScrollingWithin = isExpanded && scrollOffset > top - margin.top && scrollOffset < eBottom - margin.bottom;
 
     if (isScrollingWithin || previous === current)
-      return this.checkOverscroll();
+      return this.checkOverscroll(scrollOffset, isScrollingDown, top, bottom);
 
     let edge = isScrollingDown ? top : eBottom;
     this._scrollTo(edge);
   }
 
-  checkOverscroll() {
+  checkOverscroll(scrollOffset, isScrollingDown, currentTop, currentBottom) {
     if (this.state.isRefreshing || !this.refs['recList']) return;
 
-    let scrollOffset = this.attributes.scroll.lastOffset;
     let contentLength = this.refs['recList'].scrollProperties.contentLength;
     let lastEffectiveBottom = contentLength - this.state.viewportHeight;
-    let isScrollingDown = this.attributes.scroll.dy > 0;
 
     if ((!isScrollingDown && scrollOffset < 0) || (isScrollingDown && scrollOffset > lastEffectiveBottom)) return;
 
-    let eBottom = this.attributes.currentBottom - this.state.viewportHeight;
+    let eBottom = currentBottom - this.state.viewportHeight;
 
     if (isScrollingDown && scrollOffset > eBottom)
       this._scrollTo(eBottom);
-    else if (!isScrollingDown && scrollOffset < this.attributes.currentTop)
-      this._scrollTo(this.attributes.currentTop);
+    else if (!isScrollingDown && scrollOffset < currentTop)
+      this._scrollTo(currentTop);
   }
 
 
