@@ -47,27 +47,45 @@ export default class Navigation extends Component {
   goToRoute(id, routeProps) {
 
     let homeRouteId = 'recommendations';
+    let savedRouteId = 'saved';
 
     let routeStack = this.refs.navigator.getCurrentRoutes();
+
+    // Home route is special... we should only reset it if routeProps are passed
     let didRequestHomeRoute = id === homeRouteId;
     let homeRoute = _.find(routeStack, {id: homeRouteId});
     let homeRouteExists = Boolean(homeRoute);
     let currentIsHomeRoute = homeRouteExists && _.last(routeStack).id === homeRouteId;
 
-    if (didRequestHomeRoute && currentIsHomeRoute)
+    if (didRequestHomeRoute && currentIsHomeRoute && !routeProps)
       return;
 
-    if (didRequestHomeRoute && homeRouteExists)
+    if (didRequestHomeRoute && homeRouteExists && !routeProps)
       return this.refs.navigator.popToRoute(homeRoute);
 
-    if (didRequestHomeRoute && !homeRouteExists)
-      return this.refs.navigator.resetTo({id});
+    if (didRequestHomeRoute)
+      return this.refs.navigator.resetTo({id, ...routeProps});
 
-    if (!didRequestHomeRoute && currentIsHomeRoute)
-      return this.refs.navigator.push({id});
+    if (currentIsHomeRoute)
+      return this.refs.navigator.push({id, ...routeProps});
 
-    // implied -- if (!didRequestHomeRoute && !currentIsHomeRoute) 
-    this.refs.navigator.replace({id});
+    // Saved route is also special... but shouldn't reset
+    let didRequestSavedRoute = id === savedRouteId;
+    let savedRoute = _.find(routeStack, {id: savedRouteId});
+    let savedRouteExists = Boolean(savedRoute);
+    let currentIsSavedRoute = savedRouteExists && _.last(routeStack).id === savedRouteId;
+
+    if (didRequestSavedRoute && currentIsSavedRoute && !routeProps)
+      return;
+
+    if (didRequestSavedRoute && savedRouteExists && !routeProps)
+      return this.refs.navigator.popToRoute(savedRoute);
+
+    if (currentIsSavedRoute)
+      return this.refs.navigator.push({id, ...routeProps});
+
+
+    this.refs.navigator.replace({id, ...routeProps});
   }
 
   _configureScene(route, routeStack){
