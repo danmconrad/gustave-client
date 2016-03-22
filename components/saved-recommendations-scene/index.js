@@ -1,12 +1,13 @@
 
-import React, { 
-  Component, 
-  Image, 
+import React, {
+  Component,
+  Image,
   ListView,
-  StyleSheet, 
-  Text, 
-  TouchableOpacity, 
-  View, 
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+  LayoutAnimation,
 } from 'react-native';
 
 import Icon from 'react-native-vector-icons/MaterialIcons';
@@ -18,17 +19,17 @@ const FAKE_NOW = moment('2016-02-17 17:30');
 
 const SortEnum = {
   UPCOMING: Symbol.for('upcoming'),
-  NEARME: Symbol.for('nearby'),
+  NEARBY: Symbol.for('nearby'),
   HISTORY: Symbol.for('history'),
 };
 
 
-/* 
+/*
     NOTE:
 
     For easy editing, set default route to 'saved' and pass all recommendations to this scene
     Everything is already set up, just uncomment two lines of code in Navigation
-    
+
 */
 
 
@@ -55,14 +56,20 @@ export default class SavedRecommendationsScene extends Component {
     sort: SortEnum.UPCOMING,
   };
 
-  /* 
-    Sort Functions 
+  /*
+    Sort Functions
   */
+
+  changeSort(newSort) {
+    LayoutAnimation.easeInEaseOut();
+    this.setState({sort: newSort});
+  }
+
   getFilteredAndSortedDataBlob() {
     switch(this.state.sort) {
       case SortEnum.UPCOMING:
         return this._getUpcomingDataBlob();
-      case SortEnum.NEARME:
+      case SortEnum.NEARBY:
         return this._getNearMeDataBlob();
       case SortEnum.HISTORY:
         return this._getHistoryDataBlob();
@@ -84,8 +91,8 @@ export default class SavedRecommendationsScene extends Component {
 
     let upcoming = _.difference(isNotOver, happeningNow).sort(timeSort);
 
-    return { 
-      'Happening Now': happeningNow, 
+    return {
+      'Happening Now': happeningNow,
       'Upcoming': upcoming,
     };
   }
@@ -108,40 +115,35 @@ export default class SavedRecommendationsScene extends Component {
   _getHistoryDataBlob() {
     //TODO: actually add timestamps when added... but for now this does the same thing since we never mutate
     return {
-      'History': this.props.recommendations
+      'History': this.props.savedRecommendations,
     };
   }
 
-  /* 
-    ListView Render Functions 
+  /*
+    ListView Render Functions
   */
   rowHasChanged(r1, r2) {
     return r1 !== r2;
   }
 
   sectionHeaderHasChanged(h1, h2) {
-   return h1 !== h2; 
+   return h1 !== h2;
   }
 
   renderSectionHeader(sectionData, sectionID) {
+    if (this.state.sort === SortEnum.HISTORY || this.state.sort === SortEnum.NEARBY)
+      return null;
+
     return (
-
-      /* 
-        START EDITING ROW CONTENT HERE
-
-        NOTE: color of background and text is controlled by theme... just edit that for constency
-     */
-
-      <View style={[styles.sectionHeader, this.context.theme.headerView]}>
-        <Text style={[styles.sectionHeaderText, this.context.theme.headerText]}>
-          {sectionID}
-        </Text>
+      <View style={styles.sectionSeparator}>
+        <Text style={styles.sectionSeparatorText}>{sectionID}</Text>
       </View>
+    );
+  }
 
-      /* 
-        END EDITING 
-      */
-
+  renderSeparator(sectionID, rowID) {
+    return (
+      <View key={sectionID + rowID} style={styles.separator} />
     );
   }
 
@@ -152,43 +154,28 @@ export default class SavedRecommendationsScene extends Component {
     let start = moment(event.time.start).format('ddd MM/DD @ h:mm A');
     let end  = moment(event.time.end).format('ddd MM/DD @ h:mm A');
     let distance = '1/4 mile away'; // Making this shit up right here
+    let imageSource = {uri: place.photo.uri};
 
     return (
-        <TouchableOpacity 
+        <TouchableOpacity
+          style={styles.savedItem}
           onPress={()=> this.context.navigation.navToRoute('recommendation', {recommendationID: recommendation.id})}>
-          
-        {/* 
-            START EDITING ROW CONTENT HERE
-
-            We can use this.state.sort:enum to make minor variations
-        */}
-
-          <View style={styles.recommendationContainer}>
-            <Image
-              style={styles.recommendationImage}
-              source={{uri: place.photo.uri}}/>
-            <View style={styles.recommendationTextContainer}>
-              <View style={styles.recommendationText}>
-                <Text numberOfLines={1} style={styles.recommendationTitle}>
-                  {event.name + ' @ ' + place.name}
-                </Text>
-                <Text numberOfLines={2} style={styles.recommendationDescription}>
-                  {event.description}
-                </Text>
-                <Text style={styles.info}>{start}</Text>
-              </View>
+          <Image style={styles.image} source={imageSource} />
+          <View style={styles.detailsContainer}>
+            <Text style={styles.title}>Mortal Kombat Showdown</Text>
+            <Text style={styles.subTitle}>Emporium Logan Square</Text>
+            <View style={styles.attributeContainer}>
+              <Icon style={styles.attributeIcon} name="location-on" />
+              <Text style={styles.attributeText}>4.5 miles</Text>
+              <Icon style={styles.attributeIcon} name="access-time" />
+              <Text style={styles.attributeText}>in 30 mins</Text>
             </View>
           </View>
-
-        {/* 
-          END EDITING 
-        */}
-
         </TouchableOpacity>
     );
   }
 
-  /* 
+  /*
     React component lifecyle
   */
   shouldComponentUpdate(nextProps, nextState, nextContext) {
@@ -201,7 +188,7 @@ export default class SavedRecommendationsScene extends Component {
     if (userHasNoSavedRecs)
       return (
         <View style={[styles.flexFull, styles.empty]}>
-          <Text style={[styles.emptyText, this.context.theme.emptyText]}>You have no saved <Icon size={16} name={'favorite'}/>s</Text> 
+          <Text style={[styles.emptyText, this.context.theme.emptyText]}>You have no saved <Icon size={16} name={'favorite'}/>s</Text>
         </View>
       );
 
@@ -210,24 +197,22 @@ export default class SavedRecommendationsScene extends Component {
     if (!data)
       return (
         <View style={[styles.flexFull, styles.empty]}>
-          <Text style={[styles.emptyText, this.context.theme.emptyText]}>You have no {Symbol.keyFor(this.state.sort)} <Icon size={16} name={'favorite'}/>s</Text> 
+          <Text style={[styles.emptyText, this.context.theme.emptyText]}>You have no {Symbol.keyFor(this.state.sort)} <Icon size={16} name={'favorite'}/>s</Text>
         </View>
       );
 
     return (
       /* Default view */
-      <View style={styles.flexFull}>
-        {/* 
-            TODO: Top nav goes here
-            Use: this.state.sort:enum to determine active 
-            Use: this.setState({sort: SortEnum.*}) to set active on click
-        */}
-        <View>
-          <TouchableOpacity onPress={() => this.setState({sort: SortEnum.UPCOMING})}>
+      <View style={[styles.flexFull, styles.scene]}>
+        <View style={styles.topHeader}>
+          <TouchableOpacity onPress={this.changeSort.bind(this, SortEnum.UPCOMING)} style={[styles.topHeaderItem, this.state.sort === SortEnum.UPCOMING && styles.topHeaderItemSelected]}>
+            <Text style={[styles.topHeaderItemText, this.state.sort === SortEnum.UPCOMING && styles.topHeaderItemSelectedText]}>UPCOMING</Text>
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => this.setState({sort: SortEnum.NEARBY})}>
+          <TouchableOpacity onPress={this.changeSort.bind(this, SortEnum.NEARBY)} style={[styles.topHeaderItem, this.state.sort === SortEnum.NEARBY && styles.topHeaderItemSelected]}>
+            <Text style={[styles.topHeaderItemText, this.state.sort === SortEnum.NEARBY && styles.topHeaderItemSelectedText]}>NEARBY</Text>
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => this.setState({sort: SortEnum.HISTORY})}>
+          <TouchableOpacity onPress={this.changeSort.bind(this, SortEnum.HISTORY)} style={[styles.topHeaderItem, this.state.sort === SortEnum.HISTORY && styles.topHeaderItemSelected]}>
+            <Text style={[styles.topHeaderItemText, this.state.sort === SortEnum.HISTORY && styles.topHeaderItemSelectedText]}>HISTORY</Text>
           </TouchableOpacity>
         </View>
       {/*
@@ -236,13 +221,18 @@ export default class SavedRecommendationsScene extends Component {
         <ListView
           dataSource={this.state.datasource.cloneWithRowsAndSections(data)}
           renderRow={this.renderRow.bind(this)}
-          renderSectionHeader={this.renderSectionHeader.bind(this)}/>
+          renderSectionHeader={this.renderSectionHeader.bind(this)}
+          renderSeparator={this.renderSeparator.bind(this)} />
       </View>
     );
   }
 }
 
 var styles = StyleSheet.create({
+  scene: {
+    backgroundColor: '#fff',
+  },
+
   flexFull: {
     flex: 1,
   },
@@ -256,47 +246,95 @@ var styles = StyleSheet.create({
     textAlign: 'center',
   },
 
-  recommendationContainer: {
-    flex: 0,
+  topHeader: {
     flexDirection: 'row',
-    backgroundColor: '#fff',
+    backgroundColor: '#eee',
   },
 
-  recommendationImage: {
-    width: 100,
-    height: 100,
-  },
-
-  recommendationTextContainer: {
-    flex: 0.7,
-    height: 100,
+  topHeaderItem: {
+    borderBottomColor: '#d9d9d9',
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.25)',
-  },
-
-  recommendationText: {
     flex: 1,
-    flexDirection: 'column',
-    justifyContent: 'flex-end',
-    margin: 8
+    paddingVertical: 25,
   },
 
-  recommendationTitle: {
+  topHeaderItemSelected: {
+    borderBottomColor: '#4d4d4d',
+  },
+
+  topHeaderItemSelectedText: {
+    color: '#4d4d4d',
+  },
+
+  topHeaderItemText: {
+    textAlign: 'center',
+    color: '#a9a9a9',
+    fontFamily: 'Roboto-Bold',
+  },
+
+  separator: {
+    borderBottomColor: '#d9d9d9',
+    borderBottomWidth: 1,
+  },
+
+  sectionSeparator: {
+    backgroundColor: '#f3f3f3',
+    borderBottomColor: '#d9d9d9',
+    borderBottomWidth: 1,
+    padding: 3,
+  },
+
+  sectionSeparatorText: {
+    color: '#666',
     fontSize: 12,
-    color: '#000',
-    paddingBottom: 16, 
+    fontFamily: 'Roboto-Light',
+    textAlign: 'center',
   },
 
-  recommendationDescription: {
-    fontSize: 10,
-    color: '#111',
-    paddingBottom: 8,
+  savedItem: {
+    padding: 15,
+    flexDirection: 'row',
   },
 
-  info: {
-    fontSize: 10,
-    color: '#ccc',
-    paddingBottom: 4
+  detailsContainer: {
+    paddingHorizontal: 20,
   },
+
+  image: {
+    height: 62,
+    width: 105,
+  },
+
+  title: {
+    fontFamily: 'Roboto-Bold',
+    fontSize: 14,
+    marginBottom: 2,
+  },
+
+  subTitle: {
+    fontFamily: 'Roboto-Light',
+    fontSize: 12,
+    marginBottom: 9,
+  },
+
+  attributeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  attributeIcon: {
+    marginRight: 4,
+    fontSize: 16,
+    color: '#bfbfbf',
+  },
+
+  attributeText: {
+    fontFamily: 'Roboto-Light',
+    fontSize: 12,
+    marginRight: 15,
+    color: '#999',
+  },
+
+
 
 });

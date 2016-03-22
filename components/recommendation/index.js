@@ -130,7 +130,7 @@ class RecommendationContentPreview extends Component {
         <View style={styles.infoContainer}>
           <View style={styles.attributeContainer}>
             <Icon name="location-on" style={styles.attributeIcon} />
-            <Text style={styles.attributeText}>1/4 mile away</Text>
+            <Text style={styles.attributeText}>0.25 mile away</Text>
           </View>
           <View style={styles.serviceIconsContainer}>
             <Icon name="local-taxi" style={styles.serviceIcon} />

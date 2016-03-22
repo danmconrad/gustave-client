@@ -1,9 +1,9 @@
 import React, {
-  Component, 
-  StyleSheet, 
-  Navigator, 
-  StatusBar, 
-  View, 
+  Component,
+  StyleSheet,
+  Navigator,
+  StatusBar,
+  View,
   Text
 } from 'react-native';
 
@@ -17,7 +17,6 @@ import SavedRecommendationsScene from '../saved-recommendations-scene';
 
 const INITIAL_ROUTE = {
   id: 'recommendations',
-  // id: 'saved',
 }
 
 const HOME_ROUTE_ID = 'recommendations';
@@ -30,7 +29,7 @@ export default class Navigation extends Component {
   };
 
   getChildContext() {
-    return { 
+    return {
       navigation: this,
     };
   }
@@ -40,7 +39,7 @@ export default class Navigation extends Component {
     user: React.PropTypes.object,
   };
 
-  /* 
+  /*
       Can be called by child components
   */
   navToRoute(id, routeProps) {
@@ -113,7 +112,6 @@ export default class Navigation extends Component {
         return (
           <SavedRecommendationsScene
             savedRecommendations={this.context.user.get('savedRecommendations')}
-            // savedRecommendations={this.context.user.get('newRecommendations')}
           />
         );
     }
@@ -122,9 +120,9 @@ export default class Navigation extends Component {
 
   /* React component lifecyle */
   render() {
-    let navBar = 
-      <NavigationBar 
-        navigation={this} 
+    let navBar =
+      <NavigationBar
+        navigation={this}
         heartNumber={this.context.user.get('savedRecommendations').length}/>;
 
     return (
