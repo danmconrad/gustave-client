@@ -28,6 +28,7 @@ var Current = Immutable.Record({index: null, top: null, bottom: null});
 export default class RecommendationsScene extends Component {
   static contextTypes = {
     theme: React.PropTypes.object,
+    app: React.PropTypes.object,
   };
 
   static propTypes = {
@@ -187,11 +188,7 @@ export default class RecommendationsScene extends Component {
     });
     this.setTimeout(() => {
       LayoutAnimation.easeInEaseOut();
-      this.setState({
-        isRefreshing: false,       
-        removedRecommendations: this.state.removedRecommendations.clear(),
-        showDetails: this.state.showDetails.clear(),
-      });
+      this.context.app.refreshUserData();
     }, 2000);
   }
 
@@ -372,6 +369,17 @@ export default class RecommendationsScene extends Component {
 
   componentWillUnmount() {
     TimerMixin.componentWillUnmount.call(this);
+  }
+
+  componentWillReceiveProps(nextProps) {
+    if(nextProps.recommendations === this.props.recommendations)
+      return;
+
+    this.setState({
+      isRefreshing: false,       
+      removedRecommendations: this.state.removedRecommendations.clear(),
+      showDetails: this.state.showDetails.clear(),
+    });
   }
 
   // Since everything in state is immutable, we can use this to improve performance

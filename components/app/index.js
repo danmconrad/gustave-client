@@ -66,7 +66,7 @@ export default class Gustave extends Component {
   }
 
   refreshUserData() {
-    let userID = this.state.user.get(userID);
+    let userID = this.state.user.get('userID');
 
     let userData = {
       userID, 
