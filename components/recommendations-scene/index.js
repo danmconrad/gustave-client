@@ -33,12 +33,6 @@ export default class RecommendationsScene extends Component {
 
   static propTypes = {
     recommendations: React.PropTypes.arrayOf(React.PropTypes.object).isRequired,
-    /*
-        onToggleSaved(object recommendationID, bool newSaveState)
-
-        Will be called whenever a recommendation is saved or unsaved with the recommendation
-        id and the new saved state.
-    */
   };
 
   state = {
@@ -182,13 +176,13 @@ export default class RecommendationsScene extends Component {
   }
 
   onRefresh() {
-    //TO DO: make this fetch a fresh set of recommendations from the database
     this.setState({
       isRefreshing: true,
     });
+
     this.setTimeout(() => {
       LayoutAnimation.easeInEaseOut();
-      this.context.app.refreshUserData();
+      this.context.app.removeUserRecommendations(this.state.removedRecommendations.toArray());
     }, 2000);
   }
 

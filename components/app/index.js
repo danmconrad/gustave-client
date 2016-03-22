@@ -61,12 +61,10 @@ export default class Gustave extends Component {
       this._addSavedRecommendation(recommendationID);
   }
 
-  getUserRecommendation(recommendationID) {
-    return database.getUserRecommendation(this.state.user.get('userID'), recommendationID)
-  }
-
-  refreshUserData() {
+  removeUserRecommendations(recommendationIDs) {
     let userID = this.state.user.get('userID');
+
+    recommendationIDs.forEach(recommendationID => database.dismissUserRecommendation(userID, recommendationID));
 
     let userData = {
       userID, 
@@ -77,10 +75,26 @@ export default class Gustave extends Component {
     this.setState({user: new User(userData)});
   }
 
+  removeUserRecommendation(recommendationID) {
+    let userID = this.state.user.get('userID');
+    database.dismissUserRecommendation(userID, recommendationID);
+
+    let userData = {
+      userID, 
+      newRecommendations: database.getUserNewRecommendations(userID), 
+      savedRecommendations: database.getUserSavedRecommendations(userID),
+    };
+
+    this.setState({user: new User(userData)});
+  }
+
+  getUserRecommendation(recommendationID) {
+    return database.getUserRecommendation(this.state.user.get('userID'), recommendationID);
+  }
+
   onServiceAction() {
     return 'noop';
   }
-
 
   /* Private methods */
   _addSavedRecommendation(recommendationID) {

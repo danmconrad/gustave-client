@@ -252,7 +252,6 @@ export function getUserRecommendation(userID, eventId) {
   return {event, place, id};
 }
 
-// Not really used in demo, but oh well
 export function dismissUserRecommendation(userId, recommendationId) {
   let user = getUser(userId);
 
