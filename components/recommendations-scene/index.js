@@ -428,7 +428,7 @@ export default class RecommendationsScene extends Component {
             progressBackgroundColor="#ffff00"/>
         }
         removeClippedSubviews={true}
-        scrollEventThrottle={1}
+        scrollEventThrottle={16}
         scrollRenderAheadDistance={1}
         showsVerticalScrollIndicator={false}
       />
