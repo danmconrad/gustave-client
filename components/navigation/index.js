@@ -89,7 +89,7 @@ export default class Navigation extends Component {
   /* Navigator configuration */
   configureScene(route, routeStack){
     return {
-      ...Navigator.SceneConfigs.FloatFromBottomAndroid,
+      ...Navigator.SceneConfigs.FadeAndroid,
       // Overrides drag to dismiss gesture
       gestures: null,
     };
