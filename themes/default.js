@@ -7,6 +7,9 @@ export default StyleSheet.create({
   lightBackground: {
     backgroundColor: '#eee',
   },
+  titleContainer: {
+    backgroundColor: 'rgba(44,7,44,0.5)',
+  },
   positiveAction: {
     color: '#000',
   },

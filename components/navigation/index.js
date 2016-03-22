@@ -14,6 +14,11 @@ import RecommendationsScene from '../recommendations-scene';
 import RecommendationScene from '../recommendation-scene';
 import SavedRecommendationsScene from '../saved-recommendations-scene';
 
+
+const INITIAL_ROUTE = {
+  id: 'recommendations',
+}
+
 export default class Navigation extends Component {
 
   static contextTypes = {
@@ -22,13 +27,11 @@ export default class Navigation extends Component {
   };
 
   static propTypes = {
-    onRecommendationAction: React.PropTypes.func,
+    onServiceAction: React.PropTypes.func.isRequired,
   };
 
-  attributes = {
-    initialRoute: {
-      id: 'recommendations',
-    }
+  state = {
+    heartNumber: this.context.database.getUserSavedRecommendations(this.context.user.id).length,
   };
 
   goBack() {
@@ -84,11 +87,14 @@ export default class Navigation extends Component {
     if (currentIsSavedRoute)
       return this.refs.navigator.push({id, ...routeProps});
 
-
     this.refs.navigator.replace({id, ...routeProps});
   }
 
-  _configureScene(route, routeStack){
+  onToggleSaved() {
+    this.setState({heartNumber: this.context.database.getUserSavedRecommendations(this.context.user.id).length});
+  }
+
+  configureScene(route, routeStack){
     return {
       ...Navigator.SceneConfigs.FloatFromBottomAndroid,
       // Overrides drag to dismiss gesture
@@ -96,41 +102,45 @@ export default class Navigation extends Component {
     };
   }
 
-  _renderScene(route, navigator) {
+  renderScene(route, navigator) {
     switch(route.id) {
       case 'recommendations':
         return (
           <RecommendationsScene
             recommendations={this.context.database.getUserRecommendations(this.context.user.id)}
-            onRecommendationAction={this.props.onRecommendationAction}/>
+            onToggleSaved={this.onToggleSaved.bind(this)}
+            onServiceAction={this.props.onServiceAction}/>
         );
 
       case 'recommendation':
         return (
           <RecommendationScene
             recommendation={this.context.database.getUserRecommendation(this.context.user.id, route.recommendationID)}
-            onRecommendationAction={this.props.onRecommendationAction}/>
+            onToggleSaved={this.onToggleSaved.bind(this)}
+            onServiceAction={this.props.onServiceAction}/>
         );
 
       case 'saved':
         return (
           <SavedRecommendationsScene
             recommendations={this.context.database.getUserSavedRecommendations(this.context.user.id)}
-            onRecommendationAction={this.props.onRecommendationAction}/>
+            onServiceAction={this.props.onServiceAction}/>
         );
     }
   }
 
+
+  /* React component lifecyle */
+
   render() {
-    let heartNumber = this.context.database.getUserSavedRecommendations(this.context.user.id).length;
-    let navBar = <NavigationBar navigation={this} heartNumber={heartNumber} />;
+    let navBar = <NavigationBar navigation={this} heartNumber={this.state.heartNumber} />;
 
     return (
       <Navigator ref='navigator'
         sceneStyle={styles.scene}
-        initialRoute={this.attributes.initialRoute}
-        renderScene={this._renderScene.bind(this)}
-        configureScene={this._configureScene.bind(this)}
+        initialRoute={INITIAL_ROUTE}
+        renderScene={this.renderScene.bind(this)}
+        configureScene={this.configureScene.bind(this)}
         navigationBar={navBar} />
     );
   }

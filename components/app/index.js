@@ -33,8 +33,8 @@ export default class Gustave extends Component {
     theme,
   };
 
-  onRecommendationAction() {
-    this.forceUpdate();
+  onServiceAction() {
+    // this.forceUpdate();
   }
 
   render() {
@@ -44,7 +44,7 @@ export default class Gustave extends Component {
         <StatusBar barStyle={statusBar} />
         <Navigation 
           ref='navigation' 
-          onRecommendationAction={this.onRecommendationAction.bind(this)}
+          onServiceAction={this.onServiceAction.bind(this)}
         />
       </View>
     );
