@@ -22,6 +22,7 @@ import Swipeable from '../swipeable';
 import Recommendation from '../recommendation';
 
 const PAGING_MARGIN = 0.25;
+var Current = Immutable.Record({index: null, top: null, bottom: null});
 
 export default class RecommendationsScene extends Component {
   static contextTypes = {
@@ -50,11 +51,7 @@ export default class RecommendationsScene extends Component {
     removedRecommendations: Immutable.Set(),
     showDetails: Immutable.Set(),
     rowHeights: Immutable.List(),
-    current: Immutable.Map({
-      index: 0, 
-      top: 0,
-      bottom: 0,
-    }),
+    current: new Current(),
   };
 
   hasActiveRows() {
@@ -68,25 +65,14 @@ export default class RecommendationsScene extends Component {
     return _.findLastIndex(this.props.recommendations, (rec) => !this.state.removedRecommendations.has(rec.id));
   }
 
-  toggleDetails(recommendationID, rowID) {
+  toggleDetails(recommendationID) {
     let wasShowingDetails = this.state.showDetails.has(recommendationID);
-    let currentIndex = this.state.current.get('index');
 
-    let _actuallyToggleDetails = () => {
-      if (wasShowingDetails)
-        this.setState({showDetails: this.state.showDetails.delete(recommendationID)});
-      else
-        this.setState({showDetails: this.state.showDetails.add(recommendationID)});
-    };
-
-    if (wasShowingDetails && currentIndex === Number(rowID)) {
-      this._scrollTo(this.state.current.get('top'), true, () => {
-        _actuallyToggleDetails(wasShowingDetails, recommendationID, rowID);
-      });
-    } 
-    else {
-      _actuallyToggleDetails(wasShowingDetails, recommendationID, rowID);
-    }
+    if (wasShowingDetails)
+      return this._scrollTo(this.state.current.get('top'), true, () =>
+        this.setState({showDetails: this.state.showDetails.delete(recommendationID)}));
+    
+    this.setState({showDetails: this.state.showDetails.add(recommendationID)});
   }
 
   removeRecommendation(recommendationID) {
@@ -155,11 +141,12 @@ export default class RecommendationsScene extends Component {
     if (this.state.removedRecommendations.has(recommendation.id))
       return (<View onLayout={this.onRowLayout.bind(this, rowID)}/>);
 
-    let anim = new Map();
-    anim.set('scale', new Animated.Value(1));
-    anim.set('offset', new Animated.Value(0));
+    let anim = Immutable.Map({
+      scale: new Animated.Value(1),
+      offset: new Animated.Value(0),
+    });
 
-    this._animations.set(rowID, anim);
+    this._animations = this._animations.set(rowID, anim);
 
     let animStyles = {
       transform: [{scale: anim.get('scale')}],
@@ -188,7 +175,7 @@ export default class RecommendationsScene extends Component {
             style={shouldFill && styles.flexFull}
             recommendation={recommendation}
             showDetails={this.state.showDetails.has(recommendation.id)}
-            onToggleDetails={this.toggleDetails.bind(this, recommendation.id, rowID)}
+            onToggleDetails={this.toggleDetails.bind(this, recommendation.id)}
             onToggleSaved={this.props.onToggleSaved}
             onServiceAction={this.props.onServiceAction} />
         </Card>
@@ -304,7 +291,7 @@ export default class RecommendationsScene extends Component {
 
     let newCurrent = {index, top, bottom};
     this.setState({
-      current: this.state.current.merge({...newCurrent})
+      current: new Current({...newCurrent}),
     });
 
     return newCurrent;
@@ -319,9 +306,8 @@ export default class RecommendationsScene extends Component {
     let isExpanded = this.state.rowHeights.get(lastCurrentIndex) > this.state.viewportHeight;
 
     if (isExpanded) {
-      let top = this.state.current.get('top');
-      let bottom = this.state.current.get('bottom');
-      let eBottom = this.state.current.get('bottom') - this.state.viewportHeight;
+      let {top, bottom} = this.state.current.toObject();
+      let eBottom = bottom - this.state.viewportHeight;
       let isScrollingWithin = scrollOffset >= top && scrollOffset <= eBottom;
       if (isScrollingWithin)
         return;
@@ -349,8 +335,7 @@ export default class RecommendationsScene extends Component {
   }
 
   _checkOverscroll(scrollOffset) {
-    let top = this.state.current.get('top');
-    let bottom = this.state.current.get('bottom');
+    let {top, bottom} = this.state.current.toObject();
 
     let isPastTop = scrollOffset < top;
 
@@ -373,7 +358,7 @@ export default class RecommendationsScene extends Component {
     super(props);
 
     // This is not in state because this is updated during a render function and infinite loops are bad... mkay?
-    this._animations = new Map();
+    this._animations = Immutable.Map();
 
     //TimerMixin
     this.setTimeout = TimerMixin.setTimeout.bind(this);
