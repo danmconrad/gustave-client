@@ -21,20 +21,25 @@ export default class Gustave extends Component {
 
   getChildContext() {
     return { 
-      theme: theme, 
+      theme: this.state.theme, 
       user: this.state.user, 
-      database: database,
-      navigation: this.refs['navigation'],
+      database: this.state.database,
+      navigation: this.state.navigation,
     };
   }
 
   state = {
     user: database.getUser(1),
+    database,
     theme,
   };
 
   onServiceAction() {
-    // this.forceUpdate();
+    return 'noop';
+  }
+
+  componentDidMount() {
+    this.setState({navigation: this.refs['navigation']}); 
   }
 
   render() {
@@ -43,7 +48,7 @@ export default class Gustave extends Component {
         <View style={[styles.statusBarBackground, this.state.theme.darkBackground]} />
         <StatusBar barStyle={statusBar} />
         <Navigation 
-          ref='navigation' 
+          ref="navigation"
           onServiceAction={this.onServiceAction.bind(this)}
         />
       </View>

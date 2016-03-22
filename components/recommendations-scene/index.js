@@ -62,7 +62,7 @@ export default class RecommendationsScene extends Component {
   }
 
   getLastActiveRowIndex() {
-    if (!this.hasActiveRows)
+    if (!this.hasActiveRows())
       return -1;
 
     return _.findLastIndex(this.props.recommendations, (rec) => !this.state.removedRecommendations.has(rec.id));
@@ -389,8 +389,8 @@ export default class RecommendationsScene extends Component {
   }
 
   // Since everything in state is immutable, we can use this to improve performance
-  shouldComponentUpdate(nextProps, nextState) {
-    return (nextProps !== this.props || nextState !== this.state);
+  shouldComponentUpdate(nextProps, nextState, nextContext) {
+    return (nextProps !== this.props || nextState !== this.state || nextContext !== this.context);
   }
 
   render() {

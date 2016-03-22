@@ -121,6 +121,10 @@ export default class SavedRecommendationsScene extends Component {
     );
   }
 
+  componentDidMount() {
+    console.log(this.context);
+  }
+
   render() {
 
     let fakeNow = moment('2016-02-17 21:00');
