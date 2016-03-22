@@ -1,12 +1,16 @@
 'use strict';
 
-import React, {Component, StyleSheet, ScrollView, View, Text, InteractionManager} from 'react-native';
+import React, {
+  Component, 
+  StyleSheet, 
+  ScrollView, 
+  View, 
+  Text, 
+  InteractionManager
+} from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
-import Button from '../button';
 import Recommendation from '../recommendation';
-import Swipeable from '../swipeable';
-import Card from '../card';
 
 
 export default class RecommendationScene extends Component {
@@ -17,26 +21,29 @@ export default class RecommendationScene extends Component {
 
   static propTypes = {
     recommendation: React.PropTypes.object.isRequired,
-    onRecommendationAction: React.PropTypes.func,
   };
 
   state = {
-    isChildDetailed: false,
+    showDetails: false,
   };
 
-  handleChildToggle(nextIsDetailed) {
-    if (this.state.isChildDetailed !== nextIsDetailed) 
-      this.setState({isChildDetailed: nextIsDetailed});
+  toggleDetails() {
+    if (this.state.showDetails)
+      this.refs['scroll'].scrollTo({y:0, animated: true});
 
-    if (!this.state.isChildDetailed)
-      this.refs.scroll.scrollTo({x: 0, y:0, animated: true});
+    // Wait until scroll animation has finished
+    InteractionManager.runAfterInteractions(() => {
+      this.setState({showDetails: !this.state.showDetails});
+    });
   }
 
+  /* React Component Lifecycle */
   render() {
-    let shouldScroll = this.state.isChildDetailed;
+    let shouldScroll = this.state.showDetails;
+    let shouldFill = !this.state.showDetails;
 
     let emptyState = 
-      <Text style={styles.emptyText}>Whoops! Looks like we lost something.</Text>;
+      <Text style={[styles.emptyText, this.context.theme.emptyText]}>Whoops! Looks like we lost something.</Text>;
 
     return (
       !this.props.recommendation ?
@@ -45,14 +52,13 @@ export default class RecommendationScene extends Component {
 
       /* Default view */
       <ScrollView ref="scroll"
-          scrollEnabled={shouldScroll} 
-          contentContainerStyle={!shouldScroll && styles.flexFull}>
-
+          scrollEnabled={shouldScroll}
+          contentContainerStyle={shouldFill && styles.flexFull}>
           <Recommendation 
-            willToggle={this.handleChildToggle.bind(this)}
-            onRecommendationAction={this.props.onRecommendationAction}
-            recommendation={this.props.recommendation} />
-
+            style={shouldFill && styles.flexFull}
+            recommendation={this.props.recommendation}
+            showDetails={this.state.showDetails}
+            onToggleDetails={this.toggleDetails.bind(this)}/>
       </ScrollView>
     );
   }

@@ -23,54 +23,39 @@ import Stagger from './stagger';
 export default class Recommendation extends Component {
 
   static contextTypes = {
-    database: React.PropTypes.object,
+    theme: React.PropTypes.object,
+    app: React.PropTypes.object,
     user: React.PropTypes.object,
   };
 
   static propTypes = {
-    onLayout: React.PropTypes.func,
-    onRecommendationAction: React.PropTypes.func,
-    recommendation: React.PropTypes.object.isRequired,
-    shouldStartDetailed: React.PropTypes.bool,
     style: View.propTypes.style,
-    willToggleExpanded: React.PropTypes.func,
-    didToggleExpanded: React.PropTypes.func,
+    onLayout: React.PropTypes.func,
+    recommendation: React.PropTypes.object.isRequired,
+    showDetails: React.PropTypes.bool.isRequired,
+    onToggleDetails: React.PropTypes.func.isRequired,
   };
 
-  state = {
-    isExpanded: this.props.shouldStartDetailed,
-    isUserSaved: this.context.database.isUserSavedRecommendation(this.context.user.id, this.props.recommendation.id),
-  };
+  toggleDetails() {
+    this.props.onToggleDetails(this.props.recommendation.id);
+  }
 
+  /* React Component Lifecycle */
   componentDidMount() {
     this.refs['content'].refs['stagger'].skipAnimations();
   }
 
-  toggleSavedRecommendation() {
-    if (this.state.isUserSaved)
-      this.context.database.removeUserSavedRecommendation(this.context.user.id, this.props.recommendation.id);
-    else 
-      this.context.database.addUserSavedRecommendation(this.context.user.id, this.props.recommendation.id);
+  componentWillReceiveProps(nextProps) {
+    if(nextProps.showDetails === this.props.showDetails)
+      return;
 
-    this.props.onRecommendationAction && this.props.onRecommendationAction();
-    this.setState({isUserSaved: !this.state.isUserSaved});
-  }
-
-  toggleIsExpanded() {
-    this.props.willToggleExpanded && this.props.willToggleExpanded(!this.state.isExpanded);
-    InteractionManager.runAfterInteractions(() => this._finishToggleIsExpanded());
-  }
-
-  _finishToggleIsExpanded() {
     this.refs['content'].refs['stagger'].prepareForAnimations();
-    
+
     let handle = InteractionManager.createInteractionHandle();
     LayoutAnimation.easeInEaseOut(() => {
       this.refs['content'].refs['stagger'].runAnimations();
       InteractionManager.clearInteractionHandle(handle);
     });
-    this.setState({isExpanded: !this.state.isExpanded});
-    this.props.didToggleExpanded && this.props.didToggleExpanded(this.state.isExpanded);
   }
 
   render() {
@@ -80,28 +65,47 @@ export default class Recommendation extends Component {
 
     return (
       <View 
-        style={[styles.container, this.state.isExpanded ? styles.flexNone : styles.flexFull, this.props.style]} 
-        onLayout={this.props.onLayout}>
+        onLayout={this.props.onLayout}
+        style={[styles.container, this.props.style]}>
         <Animated.Image 
           source={imageSource} 
-          style={[styles.topContainer, this.state.isExpanded && styles.flexNone]}>
-          <View style={styles.titleContainer}>
+          style={[styles.topContainer, 
+            this.props.showDetails && styles.flexNone]}>
+          <View style={[styles.titleContainer, this.context.theme.titleContainer]}>
             <Text style={styles.title}>{event.name}</Text>
             <Text style={styles.subtitle}>{place.name}</Text>
           </View>
         </Animated.Image>
-        <View style={[styles.bottomContainer]}>
-          {this.state.isExpanded ? 
-            <RecommendationContent ref="content" recommendation={this.props.recommendation} /> : 
-            <RecommendationContentPreview ref="content" recommendation={this.props.recommendation} />}
+        <View style={styles.bottomContainer}>
+          {this.props.showDetails ? 
+            <RecommendationContent 
+              ref="content" 
+              recommendation={this.props.recommendation} 
+              onServiceAction={this.context.app.onServiceAction}/> : 
+            <RecommendationContentPreview 
+              ref="content" 
+              recommendation={this.props.recommendation} 
+              onServiceAction={this.context.app.onServiceAction}/>}
         </View>
         <View style={styles.actionContainer}>
-          <TouchableOpacity onPress={this.toggleSavedRecommendation.bind(this)} style={[styles.action, styles.toggleSavedAction]}>
-            <Icon size={22} style={styles.actionIcon} name={this.state.isUserSaved ? 'favorite' : 'favorite-border'} />
+          <TouchableOpacity 
+            onPress={() => this.context.app.toggleSavedRecommendation(this.props.recommendation.id)} 
+            style={[styles.action, 
+              styles.toggleSavedAction]}>
+            <Icon 
+              size={22} 
+              style={styles.actionIcon} 
+              name={this.context.app.isUserSavedRecommendation(this.props.recommendation.id) ? 'favorite' : 'favorite-border'}/>
           </TouchableOpacity>
-          <TouchableOpacity onPress={this.toggleIsExpanded.bind(this)} style={[styles.action, styles.viewMoreAction]}>
-            <Text style={styles.viewMoreActionText}>{this.state.isExpanded ? 'VIEW LESS DETAILS' : 'VIEW MORE DETAILS'}</Text>
-            <Icon size={32} style={styles.actionIcon} name={this.state.isExpanded ? 'expand-less' : 'expand-more'} />
+          <TouchableOpacity 
+            onPress={this.toggleDetails.bind(this)} 
+            style={[styles.action, styles.viewMoreAction]}>
+            <Text style={styles.viewMoreActionText}>
+              {this.props.showDetails ? 'VIEW LESS DETAILS' : 'VIEW MORE DETAILS'}
+            </Text>
+            <Icon 
+              size={32} style={styles.actionIcon} 
+              name={this.props.showDetails ? 'expand-less' : 'expand-more'} />
           </TouchableOpacity>
         </View>
       </View>
@@ -112,7 +116,7 @@ export default class Recommendation extends Component {
 class RecommendationContentPreview extends Component {
 
   static propTypes = {
-    onRecommendationAction: React.PropTypes.func,
+    onServiceAction: React.PropTypes.func.isRequired,
     recommendation: React.PropTypes.object.isRequired,
   };
 
@@ -126,7 +130,7 @@ class RecommendationContentPreview extends Component {
         <View style={styles.infoContainer}>
           <View style={styles.attributeContainer}>
             <Icon name="location-on" style={styles.attributeIcon} />
-            <Text style={styles.attributeText}>1/4 mile away</Text>
+            <Text style={styles.attributeText}>0.25 mile away</Text>
           </View>
           <View style={styles.serviceIconsContainer}>
             <Icon name="local-taxi" style={styles.serviceIcon} />
@@ -135,7 +139,7 @@ class RecommendationContentPreview extends Component {
             <Icon name="local-movies" style={styles.serviceIcon} />
           </View>
         </View>
-        <Text numberOfLines={6} style={styles.description}>{event.description}</Text>
+        <Text numberOfLines={5} style={styles.description}>{event.description}</Text>
         <Text numberOfLines={1} style={styles.labelContainer}>{labels}</Text>
       </Stagger>
     );
@@ -145,7 +149,7 @@ class RecommendationContentPreview extends Component {
 class RecommendationContent extends Component {
 
   static propTypes = {
-    onRecommendationAction: React.PropTypes.func,
+    onServiceAction: React.PropTypes.func.isRequired,
     recommendation: React.PropTypes.object.isRequired,
   };
 
@@ -253,7 +257,6 @@ var styles = StyleSheet.create({
   },
 
   titleContainer: {
-    backgroundColor: 'rgba(44,7,44,0.5)',
     padding: 20,
     paddingTop: 36,
   },

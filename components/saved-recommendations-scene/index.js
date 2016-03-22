@@ -1,22 +1,37 @@
-import React, { 
-  Component, 
-  StyleSheet, 
-  View, 
-  Text, 
-  Image, 
+
+import React, {
+  Component,
+  Image,
   ListView,
-  TouchableOpacity, 
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+  LayoutAnimation,
 } from 'react-native';
-
-import moment from 'moment';
-
-import Swipeable from '../swipeable';
-import Card from '../card';
 
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
-const CARD_CLICK_ACTIVE_OPACITY = 0.7;
-const RECENT_THRESHOLD_HOURS = 24;
+import moment from 'moment';
+import _ from 'lodash';
+
+const FAKE_NOW = moment('2016-02-17 17:30');
+
+const SortEnum = {
+  UPCOMING: Symbol.for('upcoming'),
+  NEARBY: Symbol.for('nearby'),
+  HISTORY: Symbol.for('history'),
+};
+
+
+/*
+    NOTE:
+
+    For easy editing, set default route to 'saved' and pass all recommendations to this scene
+    Everything is already set up, just uncomment two lines of code in Navigation
+
+*/
+
 
 export default class SavedRecommendationsScene extends Component {
 
@@ -26,11 +41,11 @@ export default class SavedRecommendationsScene extends Component {
   };
 
   static propTypes = {
-    recommendations: React.PropTypes.arrayOf(React.PropTypes.object),
+    savedRecommendations: React.PropTypes.arrayOf(React.PropTypes.object),
   };
 
   static defaultProps = {
-    recommendations: [],
+    savedRecommendations: [],
   };
 
   state = {
@@ -38,179 +53,188 @@ export default class SavedRecommendationsScene extends Component {
       rowHasChanged: this.rowHasChanged.bind(this),
       sectionHeaderHasChanged: this.sectionHeaderHasChanged.bind(this),
     }),
+    sort: SortEnum.UPCOMING,
   };
 
+  /*
+    Sort Functions
+  */
 
+  changeSort(newSort) {
+    LayoutAnimation.easeInEaseOut();
+    this.setState({sort: newSort});
+  }
+
+  getFilteredAndSortedDataBlob() {
+    switch(this.state.sort) {
+      case SortEnum.UPCOMING:
+        return this._getUpcomingDataBlob();
+      case SortEnum.NEARBY:
+        return this._getNearMeDataBlob();
+      case SortEnum.HISTORY:
+        return this._getHistoryDataBlob();
+    }
+  }
+
+  _getUpcomingDataBlob() {
+    let timeSort = (a,b) => moment(a.event.time.start).isSameOrBefore(b.event.time.start) ? -1 : 1;
+
+    let isNotOver = this.props.savedRecommendations
+      .filter(rec => FAKE_NOW.isBefore(rec.event.time.end));
+
+    if (isNotOver.length < 1)
+      return null;
+
+    let happeningNow = isNotOver
+      .filter(rec => FAKE_NOW.isSameOrAfter(rec.event.time.start))
+      .sort(timeSort);
+
+    let upcoming = _.difference(isNotOver, happeningNow).sort(timeSort);
+
+    return {
+      'Happening Now': happeningNow,
+      'Upcoming': upcoming,
+    };
+  }
+
+  _getNearMeDataBlob() {
+    //TODO: actually add distance to each recommendation and sort accordingly
+    let isNotOver = this.props.savedRecommendations
+      .filter(rec => FAKE_NOW.isBefore(rec.event.time.end))
+      .sort((a,b) => -1); // Here we'll do some shit with distance
+
+    if (isNotOver.length < 1)
+      return null;
+
+    // We should probably group into distance baskets with headers, but for now...
+    return {
+      'Nearby': isNotOver
+    };
+  }
+
+  _getHistoryDataBlob() {
+    //TODO: actually add timestamps when added... but for now this does the same thing since we never mutate
+    return {
+      'History': this.props.savedRecommendations,
+    };
+  }
+
+  /*
+    ListView Render Functions
+  */
   rowHasChanged(r1, r2) {
     return r1 !== r2;
   }
 
   sectionHeaderHasChanged(h1, h2) {
-   return h1 !== h2; 
-  }
-
-  renderHeader() {
-    return (
-      <View style={this.context.theme.darkBackground}>
-        <Text style={[styles.headingText, this.context.theme.headerText]}>Recent  <Icon name={'favorite'}/>  Activity</Text>
-      </View>
-    );
-  }
-
-  renderFooter() {
-    return (
-      <View style={this.context.theme.headerView}>
-        <TouchableOpacity>
-          <Text style={[styles.headingText, this.context.theme.headerText]}>View full history</Text>
-        </TouchableOpacity>
-      </View>
-    );
+   return h1 !== h2;
   }
 
   renderSectionHeader(sectionData, sectionID) {
-    let headerText = '';
-
-    if (sectionID === 'recentlyAdded') 
-      headerText = <Text style={[styles.headingText, this.context.theme.headerText]}>Recent <Icon name={'favorite-border'}/>s</Text>;
-    else if (sectionID === 'happeningNow')
-      headerText = <Text style={[styles.headingText, this.context.theme.headerText]}>Happening Now</Text>;
-    else if (sectionID === 'upcoming')
-      headerText = <Text style={[styles.headingText, this.context.theme.headerText]}>Upcoming</Text>;
-    else if (sectionID === 'recentlyEnded')
-      headerText = <Text style={[styles.headingText, this.context.theme.headerText]}>Recently Ended</Text>;  
+    if (this.state.sort === SortEnum.HISTORY || this.state.sort === SortEnum.NEARBY)
+      return null;
 
     return (
-      <View style={[this.context.theme.headerView]}>
-        {headerText}
+      <View style={styles.sectionSeparator}>
+        <Text style={styles.sectionSeparatorText}>{sectionID}</Text>
       </View>
     );
   }
 
-  renderRow(rowData, sectionID, rowID, highlightRow) {
- 
-    let recommendation = rowData;
+  renderSeparator(sectionID, rowID) {
+    return (
+      <View key={sectionID + rowID} style={styles.separator} />
+    );
+  }
+
+  renderRow(recommendation, sectionID, rowID) {
 
     let event = recommendation.event;
     let place = recommendation.place;
     let start = moment(event.time.start).format('ddd MM/DD @ h:mm A');
     let end  = moment(event.time.end).format('ddd MM/DD @ h:mm A');
+    let distance = '1/4 mile away'; // Making this shit up right here
+    let imageSource = {uri: place.photo.uri};
 
     return (
-      <Card>
-        <TouchableOpacity 
-          activeOpacity={CARD_CLICK_ACTIVE_OPACITY} 
-          onPress={()=> this.context.navigation.goToRoute('recommendation', {recommendationID: recommendation.id})}>
-          <View style={styles.recommendationContainer}>
-            <Image
-              style={styles.recommendationImage}
-              source={{uri: place.photo.uri}}/>
-            <View style={styles.recommendationTextContainer}>
-              <View style={styles.recommendationText}>
-                <Text numberOfLines={1} style={styles.recommendationTitle}>
-                  {event.name + ' @ ' + place.name}
-                </Text>
-                <Text numberOfLines={2} style={styles.recommendationDescription}>
-                  {event.description}
-                </Text>
-                <Text style={styles.info}>{start}</Text>
-              </View>
+        <TouchableOpacity
+          style={styles.savedItem}
+          onPress={()=> this.context.navigation.navToRoute('recommendation', {recommendationID: recommendation.id})}>
+          <Image style={styles.image} source={imageSource} />
+          <View style={styles.detailsContainer}>
+            <Text style={styles.title}>Mortal Kombat Showdown</Text>
+            <Text style={styles.subTitle}>Emporium Logan Square</Text>
+            <View style={styles.attributeContainer}>
+              <Icon style={styles.attributeIcon} name="location-on" />
+              <Text style={styles.attributeText}>4.5 miles</Text>
+              <Icon style={styles.attributeIcon} name="access-time" />
+              <Text style={styles.attributeText}>in 30 mins</Text>
             </View>
           </View>
         </TouchableOpacity>
-      </Card>
     );
   }
 
+  /*
+    React component lifecyle
+  */
+  shouldComponentUpdate(nextProps, nextState, nextContext) {
+    return (nextProps !== this.props || nextState !== this.state || nextContext !== this.context)
+  }
+
   render() {
+    let userHasNoSavedRecs = this.props.savedRecommendations.length < 1;
 
-    let fakeNow = moment('2016-02-17 21:00');
+    if (userHasNoSavedRecs)
+      return (
+        <View style={[styles.flexFull, styles.empty]}>
+          <Text style={[styles.emptyText, this.context.theme.emptyText]}>You have no saved <Icon size={16} name={'favorite'}/>s</Text>
+        </View>
+      );
 
-    // In the future, this should use only the recommendations saved this session
-    // ... but we don't have sessions yet
-    let recentlyAdded = this.props.recommendations
-      .filter((rec) => {
-        let isOver = moment(rec.event.time.end).isBefore(fakeNow);
-        return !isOver;
-      })
-      .reverse();
+    let data = this.getFilteredAndSortedDataBlob();
 
-    let happeningNow = this.props.recommendations
-      .filter((rec) => {
-        let isStarted = moment(rec.event.time.start).isSameOrBefore(fakeNow);
-        let isOver = moment(rec.event.time.end).isBefore(fakeNow);
-        return isStarted && !isOver;
-      })
-      .sort((a,b) => moment(b.event.time.start).isBefore(a.event.time.start));
-
-    let upcoming = this.props.recommendations
-      .filter((rec) => {
-        let isStarted = moment(rec.event.time.start).isSameOrBefore(fakeNow);
-        return !isStarted;
-      })
-      .sort((a,b) => moment(b.event.time.start).isBefore(a.event.time.start));
-
-    let recentlyEnded = this.props.recommendations
-      .filter((rec) => {
-        let recEnd = moment(rec.event.time.end);
-        let isOver = recEnd.isBefore(fakeNow);
-        let recentThreshold = moment(recEnd).add(RECENT_THRESHOLD_HOURS, 'h');
-        let isWithinRecentThreshold = fakeNow.isBefore(recentThreshold);
-        return isOver && isWithinRecentThreshold;
-      })
-      .sort((a,b) => moment(a.event.time.start).isBefore(b.event.time.start));
-
-
-    let data = {
-      recentlyAdded,
-      happeningNow,
-      upcoming,
-      recentlyEnded,
-    };
-
-    let hasSavedRecs = this.props.recommendations.length > 0;
+    if (!data)
+      return (
+        <View style={[styles.flexFull, styles.empty]}>
+          <Text style={[styles.emptyText, this.context.theme.emptyText]}>You have no {Symbol.keyFor(this.state.sort)} <Icon size={16} name={'favorite'}/>s</Text>
+        </View>
+      );
 
     return (
-      !hasSavedRecs ?
-      /* Empty view */
-      <View style={[styles.flexFull, styles.empty]}>
-        <Text style={styles.emptyText}>
-          No recent <Icon name={'favorite'}/> activity {'\n'}
-          Try swiping right on a recommendation
-        </Text> 
-        <TouchableOpacity style={styles.menuLink}>
-          <Text style={styles.emptyText}>View full history</Text>
-        </TouchableOpacity>
-      </View> :
-
       /* Default view */
-      <ListView 
-        dataSource={this.state.datasource.cloneWithRowsAndSections(data)}
-        renderRow={this.renderRow.bind(this)}
-        renderSectionHeader={this.renderSectionHeader.bind(this)}
-        renderHeader={this.renderHeader.bind(this)}
-        renderFooter={this.renderFooter.bind(this)}
-      />
+      <View style={[styles.flexFull, styles.scene]}>
+        <View style={styles.topHeader}>
+          <TouchableOpacity onPress={this.changeSort.bind(this, SortEnum.UPCOMING)} style={[styles.topHeaderItem, this.state.sort === SortEnum.UPCOMING && styles.topHeaderItemSelected]}>
+            <Text style={[styles.topHeaderItemText, this.state.sort === SortEnum.UPCOMING && styles.topHeaderItemSelectedText]}>UPCOMING</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={this.changeSort.bind(this, SortEnum.NEARBY)} style={[styles.topHeaderItem, this.state.sort === SortEnum.NEARBY && styles.topHeaderItemSelected]}>
+            <Text style={[styles.topHeaderItemText, this.state.sort === SortEnum.NEARBY && styles.topHeaderItemSelectedText]}>NEARBY</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={this.changeSort.bind(this, SortEnum.HISTORY)} style={[styles.topHeaderItem, this.state.sort === SortEnum.HISTORY && styles.topHeaderItemSelected]}>
+            <Text style={[styles.topHeaderItemText, this.state.sort === SortEnum.HISTORY && styles.topHeaderItemSelectedText]}>HISTORY</Text>
+          </TouchableOpacity>
+        </View>
+      {/*
+          END TODO
+      */}
+        <ListView
+          dataSource={this.state.datasource.cloneWithRowsAndSections(data)}
+          renderRow={this.renderRow.bind(this)}
+          renderSectionHeader={this.renderSectionHeader.bind(this)}
+          renderSeparator={this.renderSeparator.bind(this)} />
+      </View>
     );
   }
 }
 
 var styles = StyleSheet.create({
+  scene: {
+    backgroundColor: '#fff',
+  },
+
   flexFull: {
     flex: 1,
-  },
-
-  edgeContainer: {
-    height: 100,
-    alignItems: 'center',
-    justifyContent: 'center',
-    width: 150,
-  },
-
-  edgeLabel: {
-    fontSize: 60,
-    fontWeight: '900',
-    padding: 10,
-    textAlign: 'center',
   },
 
   empty: {
@@ -219,61 +243,98 @@ var styles = StyleSheet.create({
   },
 
   emptyText: {
-    color: '#fff',
     textAlign: 'center',
   },
 
-  recommendationContainer: {
-    flex: 0,
+  topHeader: {
     flexDirection: 'row',
-    backgroundColor: '#fff',
+    backgroundColor: '#eee',
   },
 
-  recommendationTextContainer: {
-    flex: 0.7,
-    height: 100,
+  topHeaderItem: {
+    borderBottomColor: '#d9d9d9',
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.25)',
-  },
-
-  recommendationText: {
     flex: 1,
-    flexDirection: 'column',
-    justifyContent: 'flex-end',
-    margin: 8
+    paddingVertical: 25,
   },
 
-  recommendationTitle: {
+  topHeaderItemSelected: {
+    borderBottomColor: '#4d4d4d',
+  },
+
+  topHeaderItemSelectedText: {
+    color: '#4d4d4d',
+  },
+
+  topHeaderItemText: {
+    textAlign: 'center',
+    color: '#a9a9a9',
+    fontFamily: 'Roboto-Bold',
+  },
+
+  separator: {
+    borderBottomColor: '#d9d9d9',
+    borderBottomWidth: 1,
+  },
+
+  sectionSeparator: {
+    backgroundColor: '#f3f3f3',
+    borderBottomColor: '#d9d9d9',
+    borderBottomWidth: 1,
+    padding: 3,
+  },
+
+  sectionSeparatorText: {
+    color: '#666',
     fontSize: 12,
-    color: '#000',
-    paddingBottom: 16, 
-  },
-
-  recommendationDescription: {
-    fontSize: 10,
-    color: '#111',
-    paddingBottom: 8,
-  },
-
-  info: {
-    fontSize: 10,
-    color: '#ccc',
-    paddingBottom: 4
-  },
-
-  recommendationImage: {
-    width: 100,
-    height: 100,
-  },
-
-  headingText: {
-    padding: 2.5,
+    fontFamily: 'Roboto-Light',
     textAlign: 'center',
   },
 
-  menuLink: {
-    position: 'absolute',
-    bottom: 50, left: 0, right: 0,
-  }
+  savedItem: {
+    padding: 15,
+    flexDirection: 'row',
+  },
+
+  detailsContainer: {
+    paddingHorizontal: 20,
+  },
+
+  image: {
+    height: 62,
+    width: 105,
+  },
+
+  title: {
+    fontFamily: 'Roboto-Bold',
+    fontSize: 14,
+    marginBottom: 2,
+  },
+
+  subTitle: {
+    fontFamily: 'Roboto-Light',
+    fontSize: 12,
+    marginBottom: 9,
+  },
+
+  attributeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  attributeIcon: {
+    marginRight: 4,
+    fontSize: 16,
+    color: '#bfbfbf',
+  },
+
+  attributeText: {
+    fontFamily: 'Roboto-Light',
+    fontSize: 12,
+    marginRight: 15,
+    color: '#999',
+  },
+
+
 
 });

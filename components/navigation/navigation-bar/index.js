@@ -74,13 +74,13 @@ export default class NavigationBar extends Component {
   onHomeClick() {
     let homeRoute = 'recommendations';
     this.setState({clicked: homeRoute});
-    this.props.navigation.goToRoute(homeRoute);
+    this.props.navigation.navToRoute(homeRoute);
   }
 
   onHeartClick() {
     let heartRoute = 'saved';
     this.setState({clicked: heartRoute});
-    this.props.navigation.goToRoute(heartRoute);
+    this.props.navigation.navToRoute(heartRoute);
   }
 
 

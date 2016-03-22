@@ -7,6 +7,9 @@ export default StyleSheet.create({
   lightBackground: {
     backgroundColor: '#eee',
   },
+  titleContainer: {
+    backgroundColor: '#2c072c80',
+  },
   positiveAction: {
     color: '#000',
   },
@@ -17,11 +20,14 @@ export default StyleSheet.create({
     color: '#fff',
   },
   headerView: {
-    backgroundColor: '#694968',
+    backgroundColor: '#93818e',
   },
   headerText: {
     color: '#fff',
   },
+  emptyText: {
+    color: '#333',
+  }
 });
 
 export var statusBar = 'light-content';

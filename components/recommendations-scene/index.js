@@ -1,170 +1,276 @@
-'use strict';
-
 import React, {
   Animated,
   Component,
+  Dimensions,
   Easing,
   InteractionManager,
   LayoutAnimation,
   ListView,
   RefreshControl,
-  ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
 
-import _ from 'lodash';
+import TimerMixin from 'react-timer-mixin';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+
+import _ from 'lodash';
+import Immutable from 'immutable';
 
 import Card from '../card';
 import Swipeable from '../swipeable';
 import Recommendation from '../recommendation';
 
+const PAGING_MARGIN = 0.25;
+var Current = Immutable.Record({index: null, top: null, bottom: null});
 
 export default class RecommendationsScene extends Component {
-
   static contextTypes = {
     theme: React.PropTypes.object,
-    user: React.PropTypes.object,
-    database: React.PropTypes.object,
+    app: React.PropTypes.object,
   };
 
   static propTypes = {
-    style: View.propTypes.style,
-    recommendations: React.PropTypes.arrayOf(React.PropTypes.object),
-    onRecommendationAction: React.PropTypes.func,
-  };
-
-  static defaultProps = {
-    recommendations: [],
+    recommendations: React.PropTypes.arrayOf(React.PropTypes.object).isRequired,
   };
 
   state = {
     datasource: new ListView.DataSource({
       rowHasChanged: (r1, r2) => r1 !== r2,
     }),
-    viewportHeight: 0,
     isRefreshing: false,
+    removedRecommendations: Immutable.Set(),
+    showDetails: Immutable.Set(),
+    rowHeights: Immutable.List(),
+    current: new Current(),
   };
 
-  attributes = {
-    currentHeights: [],
-    isExpanded: {},
-    isRemoved: {},
-    removeAnimations: {},
-    scroll: {
-      dy: 0,
-      lastOffset: 0,
-      dragOffset: 0,
-      auto: null,
-      autoCallback: null,
-      isDragging: false,
-    },
-    currentTop: 0,
-    currentBottom: 0,
-    current: 0,
-  };
+  hasActiveRows() {
+    return this.props.recommendations.length - this.state.removedRecommendations.size > 0;
+  }
 
-  updateRowHeight(rowID, event) {
-    let height = event.nativeEvent.layout.height;
-    this.attributes.currentHeights[Number(rowID)] = height;
-    this.checkCurrent(this.attributes.scroll.lastOffset);
+  getLastActiveRowIndex() {
+    if (!this.hasActiveRows())
+      return -1;
+
+    return _.findLastIndex(this.props.recommendations, (rec) => !this.state.removedRecommendations.has(rec.id));
+  }
+
+  toggleDetails(recommendationID) {
+    let wasShowingDetails = this.state.showDetails.has(recommendationID);
+
+    if (wasShowingDetails)
+      return this._scrollTo(this.state.current.get('top'), true, () =>
+        this.setState({showDetails: this.state.showDetails.delete(recommendationID)}));
+    
+    this.setState({showDetails: this.state.showDetails.add(recommendationID)});
   }
 
   removeRecommendation(recommendationID) {
-    this.attributes.isRemoved[recommendationID] = true;
-    this.context.database.dismissUserRecommendation(this.context.user.id, recommendationID);
+    // We actually don't update the database... eventually we'll do this during refresh
+    this.setState({removedRecommendations: this.state.removedRecommendations.add(recommendationID)});
   }
 
-  willToggleExpanded(recID, willBeExpanded) {
-    if (!willBeExpanded)
-      this._scrollTo(this.attributes.currentTop);
+  onSwipeLeft(rowID, recommendationID) {
+    let scale = this._animations.get(rowID).get('scale');
 
-    this.attributes.isExpanded[recID] = willBeExpanded;
+    Animated.sequence([
+      Animated.timing(scale, {
+        toValue: 0.8,
+        duration: 200,
+        easing: Easing.inOut(Easing.quad)
+      }),
+      Animated.timing(scale, {
+        toValue: 1.2,
+        duration: 400,
+        easing: Easing.inOut(Easing.quad)
+      }),
+      Animated.timing(scale, {
+        toValue: 0,
+        duration: 300,
+        easing: Easing.inOut(Easing.quad)
+      }),
+    ]).start(() => {
+      let top = this.state.current.get('top');
+
+      if (Number(rowID) === this.getLastActiveRowIndex())
+        return this._scrollTo(top - this.state.viewportHeight, true, () => 
+          this.removeRecommendation(recommendationID));
+
+      this._scrollTo(top, false, () => {
+        LayoutAnimation.easeInEaseOut();
+        this.removeRecommendation(recommendationID);
+      });
+    }); 
   }
 
-  didToggleExpanded() {
-    this._scrollTo(this.attributes.currentTop, false);
+  onSwipeStart(rowID) {
+    this._setSwipeEdgeOffset(rowID);
+    this.refs['recList'].setNativeProps({canCancelContentTouches: false});
   }
 
-  _scrollTo(y, animated = true, callback) {
-    if (!this.refs['recList'])
+  onSwipeEnd() {
+    this.refs['recList'].setNativeProps({canCancelContentTouches: true});
+  }
+
+  /* List view functions */
+  onListViewLayout(event) {
+    LayoutAnimation.easeInEaseOut();
+    this.setState({viewportHeight: event.nativeEvent.layout.height});
+  }
+
+  onRowLayout(rowID, event) {
+    let index = Number(rowID);
+    let height = event.nativeEvent.layout.height;
+
+    this.setState({rowHeights: this.state.rowHeights.set(index, height)});
+
+    this._checkCurrent({scrollOffset: this.refs['recList'].scrollProperties.offset});
+  }
+
+  renderRow(recommendation, sectionID, rowID) {
+    if (this.state.removedRecommendations.has(recommendation.id))
+      return (<View onLayout={this.onRowLayout.bind(this, rowID)}/>);
+
+    let anim = Immutable.Map({
+      scale: new Animated.Value(1),
+      offset: new Animated.Value(0),
+    });
+
+    this._animations = this._animations.set(rowID, anim);
+
+    let animStyles = {
+      transform: [{scale: anim.get('scale')}],
+      marginTop: anim.get('offset'),
+      height: this.state.viewportHeight,
+    };
+
+    let swipeableProps = {
+      leftSwipeEdge: <Icon name="close" size={60} style={{color: 'darkred'}}/>,
+      onSwipeLeft: this.onSwipeLeft.bind(this, rowID, recommendation.id),
+      edgeStyle: animStyles,
+      onSwipeStart: this.onSwipeStart.bind(this, rowID),
+      onSwipeEnd: this.onSwipeEnd.bind(this, rowID),
+    };
+
+    let shouldFill = !this.state.showDetails.has(recommendation.id);
+
+    return (
+      <Swipeable 
+        style={shouldFill && {height: this.state.viewportHeight}}
+        onLayout={this.onRowLayout.bind(this, rowID)}
+        {...swipeableProps}>
+        <Card 
+          style={shouldFill && styles.flexFull}>
+          <Recommendation 
+            style={shouldFill && styles.flexFull}
+            recommendation={recommendation}
+            showDetails={this.state.showDetails.has(recommendation.id)}
+            onToggleDetails={this.toggleDetails.bind(this, recommendation.id)}
+            onToggleSaved={this.props.onToggleSaved}
+            onServiceAction={this.props.onServiceAction} />
+        </Card>
+      </Swipeable>
+    );
+  }
+
+  onRefresh() {
+    this.setState({
+      isRefreshing: true,
+    });
+
+    this.setTimeout(() => {
+      LayoutAnimation.easeInEaseOut();
+      this.context.app.removeUserRecommendations(this.state.removedRecommendations.toArray());
+    }, 2000);
+  }
+
+  // Always fired
+  onScroll(event) {
+    let scrollOffset = event.nativeEvent.contentOffset.y; 
+    let lastEffectiveBottom = this.refs['recList'].scrollProperties.contentLength - this.state.viewportHeight;
+
+    // Since this happens A LOT we don't set intermediate variables
+    if (scrollOffset < 0 || scrollOffset > lastEffectiveBottom 
+      || Number.isFinite(this._dragStart) 
+      || this.state.isRefreshing 
+      || Number.isFinite(this._autoScrolling))
       return;
 
-    let willActuallyScroll = this.refs['recList'].scrollProperties.offset !== y;
-    
-    if (!willActuallyScroll)
-      return callback && callback();
-
-    this.attributes.scroll.auto = y;
-    this.attributes.scroll.autoCallback = callback;
-
-    this.refs['recList'].scrollTo({y, animated});
-
-    if (!animated)
-      this.checkCurrent(y);
-
-    if (!animated) {
-      this.attributes.scroll.auto = null;
-      this.attributes.scroll.lastOffset = y;
-      callback && callback();
-    }
-  }
-
-  onScroll(event) {
-    let scrollOffset = event.nativeEvent.contentOffset.y;
-
-    if (this.attributes.scroll.isDragging)
-      return this.attributes.scroll.dy = scrollOffset - this.attributes.scroll.lastOffset;
-
-    let isScrollingDown = scrollOffset >= this.attributes.scroll.lastOffset;
-    this.attributes.scroll.lastOffset = scrollOffset;
-
-    if (!isScrollingDown && scrollOffset < 0) return;
-
-    let isAutoScrolling = Number.isFinite(this.attributes.scroll.auto);
-    let hasReachedAutoTarget = isAutoScrolling && isScrollingDown ? scrollOffset >= this.attributes.scroll.auto : scrollOffset <= this.attributes.scroll.auto;
-
-    if (isAutoScrolling && !hasReachedAutoTarget) return;
-
-    if (hasReachedAutoTarget) {
-      this.checkCurrent(this.attributes.scroll.auto, isScrollingDown);
-      this.attributes.scroll.auto === null;
-      this.attributes.scroll.autoCallback && this.attributes.scroll.autoCallback();
-      this.attributes.scroll.autoCallback = null;
-    }
-
-    this.checkOverscroll(scrollOffset, isScrollingDown, this.attributes.currentTop, this.attributes.currentBottom);
+    this._checkOverscroll(scrollOffset);
   }
 
   onScrollBeginDrag(event) {
-    this.attributes.scroll.isDragging = true
-    this.attributes.scroll.dy = 0;
+    this._dragStart = event.nativeEvent.contentOffset.y;
   }
 
   onScrollEndDrag(event) {
-    this.attributes.scroll.isDragging = false;
-    this.attributes.scroll.dragOffset = event.nativeEvent.contentOffset.y;
-    this.checkShouldDoPaging(this.attributes.scroll.dragOffset, this.attributes.scroll.dy, event.nativeEvent.velocity.y);
+    let dragEnd = event.nativeEvent.contentOffset.y;
+    let lastEffectiveBottom = this.refs['recList'].scrollProperties.contentLength - this.state.viewportHeight;
+
+    if (dragEnd < 0 || dragEnd > lastEffectiveBottom)
+      return delete this._dragStart;
+
+    let dragStart = this._dragStart;
+    let dy = dragEnd - dragStart;
+    let vy = event.nativeEvent.velocity.y;
+
+    this._checkShouldPage({scrollOffset: dragEnd, dy, vy});
+
+    // This blocks scroll check, so don't delete it until after we're done with all drag logic
+    delete this._dragStart;
   }
 
-  checkCurrent(scrollOffset, isScrollingDown = true, margin = 0) {
-    if (this.state.isRefreshing || !this.refs['recList']) return;
+  // Fired only when scroll != drag; !fired for animated:false scrolls
+  onScrollAnimationEnd(event) {
+    let scrollOffset = event.nativeEvent.contentOffset.y;
 
-    let heights = this.attributes.currentHeights;
+    if (_aboutEqual(scrollOffset, this._autoScrolling)) {
+      let callback = this._autoCallback;
+      delete this._autoCallback;
+      delete this._autoScrolling;
+      callback && callback(scrollOffset);
+    }
+  }
 
-    let current, top, bottom, eBottom;
+  /* Private methods */
+  _scrollTo(y, animated, callback) {
+    if(!animated) {
+      this._scroll(y, false);
 
-    for (let i = 0, len = heights.length; i < len; i++) {
+      let interval;
+      return interval = this.setInterval(() => {
+        let scrollOffset = this.refs['recList'].scrollProperties.offset;
 
-      let height = heights[i];
+        if (!_aboutEqual(scrollOffset, y))
+          return;
+
+        this.clearInterval(interval);
+        callback && callback(y);
+      }, 100);
+    }
+
+    this._autoScrolling = y;
+    this._autoCallback = callback;
+    this._scroll(y, true);
+  }
+
+  _scroll(y, animated) {
+    this.refs['recList'].scrollTo({y, animated});
+  }
+
+  _checkCurrent({scrollOffset, isScrollingDown = true, margin = 0}) {
+    let index = 0, top = 0, bottom = 0;
+
+    for (let i = 0, len = this.state.rowHeights.size; i < len; i++) {
+      let height = this.state.rowHeights.get(i);
 
       if (!height)
         continue;
 
-      current = i;
-      top = bottom || 0;
+      index = i;
+      top = bottom,
       bottom = top + height;
       eBottom = bottom - this.state.viewportHeight;
 
@@ -175,293 +281,150 @@ export default class RecommendationsScene extends Component {
         break;
     }
 
-    this.attributes.currentTop = top;
-    this.attributes.currentBottom = bottom;
-    this.attributes.current = current;
-    return {current, top, bottom, eBottom};
-  }
-
-  currentIsLastActiveRow() {
-    let lastActiveRow = _.findLastIndex(this.props.recommendations, (rec) => !this.attributes.isRemoved[rec.id]);
-    return this.attributes.current === lastActiveRow;
-  }
-
-  hasActiveRows() {
-    return this.props.recommendations && _.some(this.props.recommendations, (rec) => !this.attributes.isRemoved[rec.id]);
-  }
-
-  checkShouldDoPaging(scrollOffset, dy, vy) {
-    if (this.state.isRefreshing || !this.refs['recList']) return;
-
-    let contentLength = this.refs['recList'].scrollProperties.contentLength;
-    let lastEffectiveBottom = contentLength - this.state.viewportHeight;
-    let isScrollingDown = dy > 0;
-
-    if ((!isScrollingDown && scrollOffset < 0) || (isScrollingDown && scrollOffset > lastEffectiveBottom)) return;
-
-    let scrollVelocity = vy;
-
-    let margin = Math.abs(scrollVelocity) > 1 ? 0 : this.state.viewportHeight * 0.25;
-
-    let previous = this.attributes.current;
-    let {current, top, bottom, eBottom} = this.checkCurrent(scrollOffset, isScrollingDown, margin);
-
-    let isExpanded = this.attributes.currentHeights[current] > this.state.viewportHeight;
-    let isScrollingWithin = isExpanded && scrollOffset > top - margin.top && scrollOffset < eBottom - margin.bottom;
-
-    if (isScrollingWithin || previous === current)
-      return this.checkOverscroll(scrollOffset, isScrollingDown, top, bottom);
-
-    let edge = isScrollingDown ? top : eBottom;
-    this._scrollTo(edge);
-  }
-
-  checkOverscroll(scrollOffset, isScrollingDown, currentTop, currentBottom) {
-    if (this.state.isRefreshing || !this.refs['recList']) return;
-
-    let contentLength = this.refs['recList'].scrollProperties.contentLength;
-    let lastEffectiveBottom = contentLength - this.state.viewportHeight;
-
-    if ((!isScrollingDown && scrollOffset < 0) || (isScrollingDown && scrollOffset > lastEffectiveBottom)) return;
-
-    let eBottom = currentBottom - this.state.viewportHeight;
-
-    if (isScrollingDown && scrollOffset > eBottom)
-      this._scrollTo(eBottom);
-    else if (!isScrollingDown && scrollOffset < currentTop)
-      this._scrollTo(currentTop);
-  }
-
-
-  /* 
-    We intentionally do not request an updated list from the server with every swipe.
-    Instead, we scroll to an available recommendation and then stop rendering the 
-    dismissed recommendation until next explicit update.
-  */
-  didSwipeLeft(rowID, recommendationID) {
-    let scrollTo;
-    let scrollToLast;
-
-    if (this.currentIsLastActiveRow())
-      scrollToLast = this.attributes.currentTop - this.state.viewportHeight;
-    else
-      scrollTo = this.attributes.currentTop;
-
-    Animated.sequence([
-      Animated.timing(this.attributes.removeAnimations[rowID].scale, {
-        toValue: 1.2,
-        duration: 150,
-        easing: Easing.inOut(Easing.quad)
-      }),
-      Animated.timing(this.attributes.removeAnimations[rowID].scale, {
-        toValue: 1,
-        duration: 300,
-        easing: Easing.inOut(Easing.quad)
-      }),
-      Animated.timing(this.attributes.removeAnimations[rowID].scale, {
-        toValue: 1.2,
-        duration: 150,
-        easing: Easing.inOut(Easing.quad)
-      }),
-      Animated.timing(this.attributes.removeAnimations[rowID].scale, {
-        toValue: 1,
-        duration: 300,
-        easing: Easing.inOut(Easing.quad)
-      }),
-    ]).start(() => {
-
-      // Cleanup
-      this.removeRecommendation(recommendationID);
-
-      // If there aren't any active rows, there ain't shit to scroll to
-      if (!this.hasActiveRows())
-        return this.forceUpdate();
-
-      // If this is the last card, scroll (auto animations are wonky here)
-      if (Number.isFinite(scrollToLast))
-        return this._scrollTo(scrollToLast, true, () => this.forceUpdate());
-
-      // 
-      this._scrollTo(scrollTo, false, () => {
-        LayoutAnimation.easeInEaseOut();
-        this.forceUpdate();
-      });
+    let newCurrent = {index, top, bottom};
+    this.setState({
+      current: new Current({...newCurrent}),
     });
+
+    return newCurrent;
+  }
+
+  _checkShouldPage({scrollOffset, dy, vy}) {
+    let isScrollingDown = dy >= 0 || vy >= 0;
+    let margin = Math.abs(vy) > 1 ? 0 : this.state.viewportHeight * PAGING_MARGIN;
+
+    // We can save some processing if we're scolling inside an expanded card
+    let lastCurrentIndex = this.state.current.get('index');
+    let isExpanded = this.state.rowHeights.get(lastCurrentIndex) > this.state.viewportHeight;
+
+    if (isExpanded) {
+      let {top, bottom} = this.state.current.toObject();
+      let eBottom = bottom - this.state.viewportHeight;
+      let isScrollingWithin = scrollOffset >= top && scrollOffset <= eBottom;
+      if (isScrollingWithin)
+        return;
+    }
+
+    let {index, top, bottom} = this._checkCurrent({scrollOffset, isScrollingDown, margin});
+    let didChange = lastCurrentIndex !== index;
+    let eBottom = bottom - this.state.viewportHeight;
+
+    let scrollTarget;
+
+    if (!didChange && isScrollingDown)
+      scrollTarget = eBottom;      
+
+    if (!didChange && !isScrollingDown)
+      scrollTarget = top; 
+
+    if (didChange && isScrollingDown)
+      scrollTarget = top; 
+
+    if (didChange && !isScrollingDown)
+      scrollTarget = eBottom; 
+
+    this._scrollTo(scrollTarget, true);
+  }
+
+  _checkOverscroll(scrollOffset) {
+    let {top, bottom} = this.state.current.toObject();
+
+    let isPastTop = scrollOffset < top;
+
+    if (isPastTop)
+      return this._scrollTo(top, true);
+
+    let eBottom = bottom - this.state.viewportHeight;
+    let isPastBottom = scrollOffset > eBottom;
+
+    if (isPastBottom)
+      return this._scrollTo(eBottom, true);
   }
 
   _setSwipeEdgeOffset(rowID) {
-    let rowOffset = this.attributes.scroll.lastOffset - this.attributes.currentTop;
-    this.attributes.removeAnimations[rowID].offset.setValue(rowOffset);
+    this._animations.get(rowID).get('offset').setValue(this.refs['recList'].scrollProperties.offset - this.state.current.get('top')); 
   }
 
-  renderRow(recommendation, sectionID, rowID) {
+  /* React component lifecycle */
+  constructor(props) {
+    super(props);
 
-    if (this.attributes.isRemoved[recommendation.id])
-      return (<View onLayout={this.updateRowHeight.bind(this, rowID)} />);
+    // This is not in state because this is updated during a render function and infinite loops are bad... mkay?
+    this._animations = Immutable.Map();
 
-    this.attributes.removeAnimations[rowID] = {
-      scale: new Animated.Value(1),
-      offset: new Animated.Value(0),
-    };
-
-    // Rather than translate, we could try adjusting the height... 
-    // height should increase at 2x offset
-    // not sure if this would have side effects
-
-    let anim = {transform: [{scale: this.attributes.removeAnimations[rowID].scale}], marginTop: this.attributes.removeAnimations[rowID].offset, height: this.state.viewportHeight};
-
-    let swipeableProps = {
-      /* 
-        We infer user feedback rather than ask for it explictly, b/c behavioral studies have shown
-        that asking a user to give explicit feedback results in users attempting to provide OBJECTIVE
-        feedback rather than SUBJECTIVE enjoyment. 
-
-        See e.g., Netflix
-      */
-      leftSwipeEdge: <Icon name="close" size={60} style={{color: 'darkred'}}/>,
-      onSwipeLeft: this.didSwipeLeft.bind(this, rowID, recommendation.id),
-      edgeStyle: anim,
-      // This next bit is faster than trigger a rerender
-      onSwipeStart: () => {
-        this._setSwipeEdgeOffset(rowID);
-        this.refs['recList'].setNativeProps({canCancelContentTouches: false});
-      },
-      onSwipeEnd: () => this.refs['recList'].setNativeProps({canCancelContentTouches: true}),
-    };
-
-    let shouldStartDetailed = Boolean(this.attributes.isExpanded[recommendation.id]);
-
-    return (
-      <Swipeable key={recommendation.id} {...swipeableProps}>
-        <ExpandableRecommendation key={recommendation.id}
-          collapsedHeight={this.state.viewportHeight}
-          didToggleExpanded={this.didToggleExpanded.bind(this)}
-          onLayout={this.updateRowHeight.bind(this, rowID)}
-          onRecommendationAction={this.props.onRecommendationAction}
-          recommendation={recommendation}
-          shouldStartDetailed={shouldStartDetailed}
-          willToggleExpanded={this.willToggleExpanded.bind(this)}/>
-      </Swipeable>
-    );
+    //TimerMixin
+    this.setTimeout = TimerMixin.setTimeout.bind(this);
+    this.clearTimeout = TimerMixin.clearTimeout.bind(this);
+    this.setInterval = TimerMixin.setInterval.bind(this); 
+    this.clearInterval = TimerMixin.clearInterval.bind(this); 
+    this.setImmediate = TimerMixin.setImmediate.bind(this); 
+    this.clearImmediate = TimerMixin.clearImmediate.bind(this);
   }
 
-  onRefresh() {
-    this.setState({isRefreshing: true});
-    console.log('oh so refreshing!'); // Presumably we'd do more than write a cheesy logout and set a timeout
-    setTimeout(this.stopRefreshing.bind(this), 2000);
-  }
-  stopRefreshing() {
-    this.setState({isRefreshing: false})
-    this._scrollTo(0);
+  componentWillUnmount() {
+    TimerMixin.componentWillUnmount.call(this);
   }
 
-  handleListViewLayout(event) {
-    LayoutAnimation.easeInEaseOut();
-    this.setState({viewportHeight: event.nativeEvent.layout.height});
+  componentWillReceiveProps(nextProps) {
+    if(nextProps.recommendations === this.props.recommendations)
+      return;
+
+    this.setState({
+      isRefreshing: false,       
+      removedRecommendations: this.state.removedRecommendations.clear(),
+      showDetails: this.state.showDetails.clear(),
+    });
+  }
+
+  // Since everything in state is immutable, we can use this to improve performance
+  shouldComponentUpdate(nextProps, nextState, nextContext) {
+    return (nextProps !== this.props || nextState !== this.state || nextContext !== this.context);
   }
 
   render() {
+    let isEmpty = !this.hasActiveRows();
     let emptyState =
-      <Text style={styles.emptyText}>No recommendations available.</Text>;
-
+      <Text style={[styles.emptyText, this.context.theme.emptyText]}>No recommendations available.</Text>;
 
     return (
-      !this.hasActiveRows() ?
+      isEmpty ?
       /* Empty view */
       <View style={[styles.flexFull, styles.empty]}>{emptyState}</View> :
 
       /* Default view */
       <ListView ref='recList'
         style={[styles.flexFull, this.props.style]}
-        onLayout={this.handleListViewLayout.bind(this)}
+        onLayout={this.onListViewLayout.bind(this)}
         // Guard on datasource prevents render until proper height can be set
-        dataSource={this.state.datasource.cloneWithRows(this.state.viewportHeight && this.props.recommendations)}
+        dataSource={this.state.datasource.cloneWithRows(this.state.viewportHeight > 0 && this.props.recommendations)}
         renderRow={this.renderRow.bind(this)}
-        canCancelContentTouches={true}
         directionalLockEnabled={true}
         initialListSize={1}
         onScroll={this.onScroll.bind(this)}
         onScrollBeginDrag={this.onScrollBeginDrag.bind(this)}
         onScrollEndDrag={this.onScrollEndDrag.bind(this)}
+        onScrollAnimationEnd={this.onScrollAnimationEnd.bind(this)}
+        onMomentumScrollEnd={this.onScrollAnimationEnd.bind(this)}
         pageSize={1}
         refreshControl={ 
           <RefreshControl
             refreshing={this.state.isRefreshing}
             onRefresh={this.onRefresh.bind(this)}
             tintColor="#000000"
-            title="Fetching new recommendations..."
+            title="Refreshing recommendations..."
             colors={['#ff0000', '#00ff00', '#0000ff']}
             progressBackgroundColor="#ffff00"/>
         }
         removeClippedSubviews={true}
-        scrollEventThrottle={1}
-        scrollRenderAheadDistance={this.state.viewportHeight}
+        scrollEventThrottle={16}
+        scrollRenderAheadDistance={1}
         showsVerticalScrollIndicator={false}
       />
     );
   }
 }
 
-class ExpandableRecommendation extends Component {
-
-  static propTypes = {
-    collapsedHeight: React.PropTypes.number.isRequired,
-    onLayout: React.PropTypes.func,
-    onRecommendationAction: React.PropTypes.func,
-    willToggleExpanded: React.PropTypes.func,
-    recommendation: React.PropTypes.object.isRequired,
-    shouldStartDetailed: React.PropTypes.bool,
-    didToggleExpanded: React.PropTypes.func,
-    onRemove: React.PropTypes.func,
-  };
-
-  state = {
-    isRecExpanded: this.props.shouldStartDetailed || false,
-    recHeight: 0,
-  };
-
-  willToggleExpanded(isRecExpanded) {
-    this.props.willToggleExpanded && this.props.willToggleExpanded(this.props.recommendation.id, isRecExpanded);
-  }
-
-  didToggleExpanded(isRecExpanded) {
-    if (this.state.isRecExpanded !== isRecExpanded)
-      this.setState({isRecExpanded});
-
-    this.props.didToggleExpanded && this.props.didToggleExpanded(isRecExpanded);
-  }
-
-  onRecLayout(event) {
-    this.setState({recHeight: event.nativeEvent.layout.height});
-  }
-
-  render() {
-    let shouldFill = !this.state.isRecExpanded || this.state.recHeight < this.props.collapsedHeight;
-    let height = {height: shouldFill ? this.props.collapsedHeight : null};
-
-    return (
-      <View style={height} onLayout={this.props.onLayout}>
-        <Card style={styles.flexFull}>
-          <Recommendation
-            onLayout={this.onRecLayout.bind(this)}
-            onRecommendationAction={this.props.onRecommendationAction}
-            recommendation={this.props.recommendation}
-            shouldStartDetailed={this.props.shouldStartDetailed}
-            willToggleExpanded={this.willToggleExpanded.bind(this)}
-            didToggleExpanded={this.didToggleExpanded.bind(this)}/>
-        </Card>
-      </View>
-    );
-  }
-}
-
 var styles = StyleSheet.create({
-
-  zero: {
-    flex: 0,
-    height: 0,
-  },
-
   flexFull: {
     flex: 1,
   },
@@ -479,3 +442,9 @@ var styles = StyleSheet.create({
     textAlign: 'center',
   },
 });
+
+// Because floating point equality sucks
+function _aboutEqual(a, b) {
+  let Epsilon = 0.001;
+  return (Math.abs(a-b) < Epsilon);
+}
