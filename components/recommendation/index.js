@@ -24,7 +24,7 @@ export default class Recommendation extends Component {
 
   static contextTypes = {
     theme: React.PropTypes.object,
-    database: React.PropTypes.object,
+    app: React.PropTypes.object,
     user: React.PropTypes.object,
   };
 
@@ -33,25 +33,8 @@ export default class Recommendation extends Component {
     onLayout: React.PropTypes.func,
     recommendation: React.PropTypes.object.isRequired,
     showDetails: React.PropTypes.bool.isRequired,
-
     onToggleDetails: React.PropTypes.func.isRequired,
-    onToggleSaved: React.PropTypes.func,
-    onServiceAction: React.PropTypes.func.isRequired,
   };
-
-  state = {
-    isUserSaved: this.context.database.isUserSavedRecommendation(this.context.user.id, this.props.recommendation.id),
-  };
-
-  toggleSaved() {
-    if (this.state.isUserSaved)
-      this.context.database.removeUserSavedRecommendation(this.context.user.id, this.props.recommendation.id);
-    else
-      this.context.database.addUserSavedRecommendation(this.context.user.id, this.props.recommendation.id);
-
-    this.setState({isUserSaved: this.context.database.isUserSavedRecommendation(this.context.user.id, this.props.recommendation.id)});
-    this.props.onToggleSaved && this.props.onToggleSaved(this.props.recommendation.id, this.state.isUserSaved);
-  }
 
   toggleDetails() {
     this.props.onToggleDetails(this.props.recommendation.id);
@@ -98,21 +81,21 @@ export default class Recommendation extends Component {
             <RecommendationContent 
               ref="content" 
               recommendation={this.props.recommendation} 
-              onServiceAction={this.props.onServiceAction}/> : 
+              onServiceAction={this.context.app.onServiceAction}/> : 
             <RecommendationContentPreview 
               ref="content" 
               recommendation={this.props.recommendation} 
-              onServiceAction={this.props.onServiceAction}/>}
+              onServiceAction={this.context.app.onServiceAction}/>}
         </View>
         <View style={styles.actionContainer}>
           <TouchableOpacity 
-            onPress={this.toggleSaved.bind(this)} 
+            onPress={() => this.context.app.toggleSavedRecommendation(this.props.recommendation.id)} 
             style={[styles.action, 
               styles.toggleSavedAction]}>
             <Icon 
               size={22} 
               style={styles.actionIcon} 
-              name={this.state.isUserSaved ? 'favorite' : 'favorite-border'}/>
+              name={this.context.app.isUserSavedRecommendation(this.props.recommendation.id) ? 'favorite' : 'favorite-border'}/>
           </TouchableOpacity>
           <TouchableOpacity 
             onPress={this.toggleDetails.bind(this)} 

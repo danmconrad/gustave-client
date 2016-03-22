@@ -5,6 +5,7 @@
  * eventually be wired to our backend service.
  */
 
+
 let event1 = {
   id: 1,
   name: 'Dead On TV',
@@ -212,13 +213,11 @@ function getPlace(id) {
   return _data.Place[id];
 }
 
-export function dismissUserRecommendation(userId, recommendationId) {
+// Can be treated as immutable
+export function getUserSavedRecommendations(userId) {
   let user = getUser(userId);
 
-  if (!user.dismissed.includes(recommendationId))
-    user.dismissed.push(recommendationId);
-
-  user.saved = user.saved.filter(eventId => eventId !== recommendationId);
+  return user.saved.map(eventId => getUserRecommendation(userId, eventId));
 }
 
 export function addUserSavedRecommendation(userId, recommendationId) {
@@ -236,7 +235,8 @@ export function removeUserSavedRecommendation(userId, recommendationId) {
     user.saved.splice(index, 1);
 }
 
-export function getUserRecommendations(userId) {
+// Can be treated as immutable
+export function getUserNewRecommendations(userId) {
   let user = getUser(userId);
 
   return user.recommendations
@@ -244,23 +244,25 @@ export function getUserRecommendations(userId) {
       .map(eventId => getUserRecommendation(userId, eventId));
 }
 
-export function getUserSavedRecommendations(userId) {
-  let user = getUser(userId);
-
-  return user.saved.map(eventId => getUserRecommendation(userId, eventId));
-}
-
-export function isUserSavedRecommendation(userId, recommendationId) {
-  let user = getUser(userId);
-
-  return user.saved.includes(recommendationId);
-}
-
+// Can be treated as immutable... builds a recommendation object for returning
 export function getUserRecommendation(userID, eventId) {
   let event = getEvent(eventId);
   let place = getPlace(event.place);
   let id = event.id;
   return {event, place, id};
 }
+
+// Not really used in demo, but oh well
+export function dismissUserRecommendation(userId, recommendationId) {
+  let user = getUser(userId);
+
+  if (!user.dismissed.includes(recommendationId))
+    user.dismissed.push(recommendationId);
+
+  user.saved = user.saved.filter(eventId => eventId !== recommendationId);
+}
+
+
+
 
 

@@ -1,22 +1,36 @@
+
 import React, { 
   Component, 
-  StyleSheet, 
-  View, 
-  Text, 
   Image, 
   ListView,
+  StyleSheet, 
+  Text, 
   TouchableOpacity, 
+  View, 
 } from 'react-native';
-
-import moment from 'moment';
-
-import Swipeable from '../swipeable';
-import Card from '../card';
 
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
-const CARD_CLICK_ACTIVE_OPACITY = 0.7;
-const RECENT_THRESHOLD_HOURS = 24;
+import moment from 'moment';
+import _ from 'lodash';
+
+const FAKE_NOW = moment('2016-02-17 17:30');
+
+const SortEnum = {
+  UPCOMING: Symbol.for('upcoming'),
+  NEARME: Symbol.for('nearby'),
+  HISTORY: Symbol.for('history'),
+};
+
+
+/* 
+    NOTE:
+
+    For easy editing, set default route to 'saved' and pass all recommendations to this scene
+    Everything is already set up, just uncomment two lines of code in Navigation
+    
+*/
+
 
 export default class SavedRecommendationsScene extends Component {
 
@@ -26,11 +40,11 @@ export default class SavedRecommendationsScene extends Component {
   };
 
   static propTypes = {
-    recommendations: React.PropTypes.arrayOf(React.PropTypes.object),
+    savedRecommendations: React.PropTypes.arrayOf(React.PropTypes.object),
   };
 
   static defaultProps = {
-    recommendations: [],
+    savedRecommendations: [],
   };
 
   state = {
@@ -38,9 +52,69 @@ export default class SavedRecommendationsScene extends Component {
       rowHasChanged: this.rowHasChanged.bind(this),
       sectionHeaderHasChanged: this.sectionHeaderHasChanged.bind(this),
     }),
+    sort: SortEnum.UPCOMING,
   };
 
+  /* 
+    Sort Functions 
+  */
+  getFilteredAndSortedDataBlob() {
+    switch(this.state.sort) {
+      case SortEnum.UPCOMING:
+        return this._getUpcomingDataBlob();
+      case SortEnum.NEARME:
+        return this._getNearMeDataBlob();
+      case SortEnum.HISTORY:
+        return this._getHistoryDataBlob();
+    }
+  }
 
+  _getUpcomingDataBlob() {
+    let timeSort = (a,b) => moment(a.event.time.start).isSameOrBefore(b.event.time.start) ? -1 : 1;
+
+    let isNotOver = this.props.savedRecommendations
+      .filter(rec => FAKE_NOW.isBefore(rec.event.time.end));
+
+    if (isNotOver.length < 1)
+      return null;
+
+    let happeningNow = isNotOver
+      .filter(rec => FAKE_NOW.isSameOrAfter(rec.event.time.start))
+      .sort(timeSort);
+
+    let upcoming = _.difference(isNotOver, happeningNow).sort(timeSort);
+
+    return { 
+      'Happening Now': happeningNow, 
+      'Upcoming': upcoming,
+    };
+  }
+
+  _getNearMeDataBlob() {
+    //TODO: actually add distance to each recommendation and sort accordingly
+    let isNotOver = this.props.savedRecommendations
+      .filter(rec => FAKE_NOW.isBefore(rec.event.time.end))
+      .sort((a,b) => -1); // Here we'll do some shit with distance
+
+    if (isNotOver.length < 1)
+      return null;
+
+    // We should probably group into distance baskets with headers, but for now...
+    return {
+      'Nearby': isNotOver
+    };
+  }
+
+  _getHistoryDataBlob() {
+    //TODO: actually add timestamps when added... but for now this does the same thing since we never mutate
+    return {
+      'History': this.props.recommendations
+    };
+  }
+
+  /* 
+    ListView Render Functions 
+  */
   rowHasChanged(r1, r2) {
     return r1 !== r2;
   }
@@ -49,57 +123,46 @@ export default class SavedRecommendationsScene extends Component {
    return h1 !== h2; 
   }
 
-  renderHeader() {
-    return (
-      <View style={this.context.theme.darkBackground}>
-        <Text style={[styles.headingText, this.context.theme.headerText]}>Recent  <Icon name={'favorite'}/>  Activity</Text>
-      </View>
-    );
-  }
-
-  renderFooter() {
-    return (
-      <View style={this.context.theme.headerView}>
-        <TouchableOpacity>
-          <Text style={[styles.headingText, this.context.theme.headerText]}>View full history</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
-
   renderSectionHeader(sectionData, sectionID) {
-    let headerText = '';
-
-    if (sectionID === 'recentlyAdded') 
-      headerText = <Text style={[styles.headingText, this.context.theme.headerText]}>Recent <Icon name={'favorite-border'}/>s</Text>;
-    else if (sectionID === 'happeningNow')
-      headerText = <Text style={[styles.headingText, this.context.theme.headerText]}>Happening Now</Text>;
-    else if (sectionID === 'upcoming')
-      headerText = <Text style={[styles.headingText, this.context.theme.headerText]}>Upcoming</Text>;
-    else if (sectionID === 'recentlyEnded')
-      headerText = <Text style={[styles.headingText, this.context.theme.headerText]}>Recently Ended</Text>;  
-
     return (
-      <View style={[this.context.theme.headerView]}>
-        {headerText}
+
+      /* 
+        START EDITING ROW CONTENT HERE
+
+        NOTE: color of background and text is controlled by theme... just edit that for constency
+     */
+
+      <View style={[styles.sectionHeader, this.context.theme.headerView]}>
+        <Text style={[styles.sectionHeaderText, this.context.theme.headerText]}>
+          {sectionID}
+        </Text>
       </View>
+
+      /* 
+        END EDITING 
+      */
+
     );
   }
 
-  renderRow(rowData, sectionID, rowID, highlightRow) {
- 
-    let recommendation = rowData;
+  renderRow(recommendation, sectionID, rowID) {
 
     let event = recommendation.event;
     let place = recommendation.place;
     let start = moment(event.time.start).format('ddd MM/DD @ h:mm A');
     let end  = moment(event.time.end).format('ddd MM/DD @ h:mm A');
+    let distance = '1/4 mile away'; // Making this shit up right here
 
     return (
-      <Card>
         <TouchableOpacity 
-          activeOpacity={CARD_CLICK_ACTIVE_OPACITY} 
-          onPress={()=> this.context.navigation.goToRoute('recommendation', {recommendationID: recommendation.id})}>
+          onPress={()=> this.context.navigation.navToRoute('recommendation', {recommendationID: recommendation.id})}>
+          
+        {/* 
+            START EDITING ROW CONTENT HERE
+
+            We can use this.state.sort:enum to make minor variations
+        */}
+
           <View style={styles.recommendationContainer}>
             <Image
               style={styles.recommendationImage}
@@ -116,84 +179,65 @@ export default class SavedRecommendationsScene extends Component {
               </View>
             </View>
           </View>
+
+        {/* 
+          END EDITING 
+        */}
+
         </TouchableOpacity>
-      </Card>
     );
   }
 
-  componentDidMount() {
-    console.log(this.context);
+  /* 
+    React component lifecyle
+  */
+  shouldComponentUpdate(nextProps, nextState, nextContext) {
+    return (nextProps !== this.props || nextState !== this.state || nextContext !== this.context)
   }
 
   render() {
+    let userHasNoSavedRecs = this.props.savedRecommendations.length < 1;
 
-    let fakeNow = moment('2016-02-17 21:00');
+    if (userHasNoSavedRecs)
+      return (
+        <View style={[styles.flexFull, styles.empty]}>
+          <Text style={[styles.emptyText, this.context.theme.emptyText]}>You have no saved <Icon size={16} name={'favorite'}/>s</Text> 
+        </View>
+      );
 
-    // In the future, this should use only the recommendations saved this session
-    // ... but we don't have sessions yet
-    let recentlyAdded = this.props.recommendations
-      .filter((rec) => {
-        let isOver = moment(rec.event.time.end).isBefore(fakeNow);
-        return !isOver;
-      })
-      .reverse();
+    let data = this.getFilteredAndSortedDataBlob();
 
-    let happeningNow = this.props.recommendations
-      .filter((rec) => {
-        let isStarted = moment(rec.event.time.start).isSameOrBefore(fakeNow);
-        let isOver = moment(rec.event.time.end).isBefore(fakeNow);
-        return isStarted && !isOver;
-      })
-      .sort((a,b) => moment(b.event.time.start).isBefore(a.event.time.start));
-
-    let upcoming = this.props.recommendations
-      .filter((rec) => {
-        let isStarted = moment(rec.event.time.start).isSameOrBefore(fakeNow);
-        return !isStarted;
-      })
-      .sort((a,b) => moment(b.event.time.start).isBefore(a.event.time.start));
-
-    let recentlyEnded = this.props.recommendations
-      .filter((rec) => {
-        let recEnd = moment(rec.event.time.end);
-        let isOver = recEnd.isBefore(fakeNow);
-        let recentThreshold = moment(recEnd).add(RECENT_THRESHOLD_HOURS, 'h');
-        let isWithinRecentThreshold = fakeNow.isBefore(recentThreshold);
-        return isOver && isWithinRecentThreshold;
-      })
-      .sort((a,b) => moment(a.event.time.start).isBefore(b.event.time.start));
-
-
-    let data = {
-      recentlyAdded,
-      happeningNow,
-      upcoming,
-      recentlyEnded,
-    };
-
-    let hasSavedRecs = this.props.recommendations.length > 0;
+    if (!data)
+      return (
+        <View style={[styles.flexFull, styles.empty]}>
+          <Text style={[styles.emptyText, this.context.theme.emptyText]}>You have no {Symbol.keyFor(this.state.sort)} <Icon size={16} name={'favorite'}/>s</Text> 
+        </View>
+      );
 
     return (
-      !hasSavedRecs ?
-      /* Empty view */
-      <View style={[styles.flexFull, styles.empty]}>
-        <Text style={styles.emptyText}>
-          No recent <Icon name={'favorite'}/> activity {'\n'}
-          Try swiping right on a recommendation
-        </Text> 
-        <TouchableOpacity style={styles.menuLink}>
-          <Text style={styles.emptyText}>View full history</Text>
-        </TouchableOpacity>
-      </View> :
-
       /* Default view */
-      <ListView 
-        dataSource={this.state.datasource.cloneWithRowsAndSections(data)}
-        renderRow={this.renderRow.bind(this)}
-        renderSectionHeader={this.renderSectionHeader.bind(this)}
-        renderHeader={this.renderHeader.bind(this)}
-        renderFooter={this.renderFooter.bind(this)}
-      />
+      <View style={styles.flexFull}>
+        {/* 
+            TODO: Top nav goes here
+            Use: this.state.sort:enum to determine active 
+            Use: this.setState({sort: SortEnum.*}) to set active on click
+        */}
+        <View>
+          <TouchableOpacity onPress={() => this.setState({sort: SortEnum.UPCOMING})}>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => this.setState({sort: SortEnum.NEARBY})}>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => this.setState({sort: SortEnum.HISTORY})}>
+          </TouchableOpacity>
+        </View>
+      {/*
+          END TODO
+      */}
+        <ListView
+          dataSource={this.state.datasource.cloneWithRowsAndSections(data)}
+          renderRow={this.renderRow.bind(this)}
+          renderSectionHeader={this.renderSectionHeader.bind(this)}/>
+      </View>
     );
   }
 }
@@ -203,27 +247,12 @@ var styles = StyleSheet.create({
     flex: 1,
   },
 
-  edgeContainer: {
-    height: 100,
-    alignItems: 'center',
-    justifyContent: 'center',
-    width: 150,
-  },
-
-  edgeLabel: {
-    fontSize: 60,
-    fontWeight: '900',
-    padding: 10,
-    textAlign: 'center',
-  },
-
   empty: {
     alignItems: 'center',
     justifyContent: 'center',
   },
 
   emptyText: {
-    color: '#fff',
     textAlign: 'center',
   },
 
@@ -231,6 +260,11 @@ var styles = StyleSheet.create({
     flex: 0,
     flexDirection: 'row',
     backgroundColor: '#fff',
+  },
+
+  recommendationImage: {
+    width: 100,
+    height: 100,
   },
 
   recommendationTextContainer: {
@@ -264,20 +298,5 @@ var styles = StyleSheet.create({
     color: '#ccc',
     paddingBottom: 4
   },
-
-  recommendationImage: {
-    width: 100,
-    height: 100,
-  },
-
-  headingText: {
-    padding: 2.5,
-    textAlign: 'center',
-  },
-
-  menuLink: {
-    position: 'absolute',
-    bottom: 50, left: 0, right: 0,
-  }
 
 });

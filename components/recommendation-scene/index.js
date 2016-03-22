@@ -17,14 +17,10 @@ export default class RecommendationScene extends Component {
 
   static contextTypes = {
     theme: React.PropTypes.object,
-    database: React.PropTypes.object,
-    user: React.PropTypes.object,
   };
 
   static propTypes = {
     recommendation: React.PropTypes.object.isRequired,
-    onToggleSaved: React.PropTypes.func,
-    onServiceAction: React.PropTypes.func.isRequired,
   };
 
   state = {
@@ -47,7 +43,7 @@ export default class RecommendationScene extends Component {
     let shouldFill = !this.state.showDetails;
 
     let emptyState = 
-      <Text style={styles.emptyText}>Whoops! Looks like we lost something.</Text>;
+      <Text style={[styles.emptyText, this.context.theme.emptyText]}>Whoops! Looks like we lost something.</Text>;
 
     return (
       !this.props.recommendation ?
@@ -62,9 +58,7 @@ export default class RecommendationScene extends Component {
             style={shouldFill && styles.flexFull}
             recommendation={this.props.recommendation}
             showDetails={this.state.showDetails}
-            onToggleDetails={this.toggleDetails.bind(this)}
-            onToggleSaved={this.props.onToggleSaved}
-            onServiceAction={this.props.onServiceAction}/>
+            onToggleDetails={this.toggleDetails.bind(this)}/>
       </ScrollView>
     );
   }

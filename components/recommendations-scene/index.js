@@ -11,6 +11,7 @@ import React, {
   Text,
   View,
 } from 'react-native';
+
 import TimerMixin from 'react-timer-mixin';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
@@ -27,8 +28,6 @@ var Current = Immutable.Record({index: null, top: null, bottom: null});
 export default class RecommendationsScene extends Component {
   static contextTypes = {
     theme: React.PropTypes.object,
-    database: React.PropTypes.object,
-    user: React.PropTypes.object,
   };
 
   static propTypes = {
@@ -39,8 +38,6 @@ export default class RecommendationsScene extends Component {
         Will be called whenever a recommendation is saved or unsaved with the recommendation
         id and the new saved state.
     */
-    onToggleSaved: React.PropTypes.func,
-    onServiceAction: React.PropTypes.func.isRequired,
   };
 
   state = {
@@ -76,7 +73,7 @@ export default class RecommendationsScene extends Component {
   }
 
   removeRecommendation(recommendationID) {
-    this.context.database.dismissUserRecommendation(this.context.user.id, recommendationID);
+    // We actually don't update the database... eventually we'll do this during refresh
     this.setState({removedRecommendations: this.state.removedRecommendations.add(recommendationID)});
   }
 
@@ -203,7 +200,11 @@ export default class RecommendationsScene extends Component {
     let scrollOffset = event.nativeEvent.contentOffset.y; 
     let lastEffectiveBottom = this.refs['recList'].scrollProperties.contentLength - this.state.viewportHeight;
 
-    if (scrollOffset < 0 || scrollOffset > lastEffectiveBottom || Number.isFinite(this._dragStart) || this.state.isRefreshing || Number.isFinite(this._autoScrolling))
+    // Since this happens A LOT we don't set intermediate variables
+    if (scrollOffset < 0 || scrollOffset > lastEffectiveBottom 
+      || Number.isFinite(this._dragStart) 
+      || this.state.isRefreshing 
+      || Number.isFinite(this._autoScrolling))
       return;
 
     this._checkOverscroll(scrollOffset);
@@ -381,7 +382,7 @@ export default class RecommendationsScene extends Component {
   render() {
     let isEmpty = !this.hasActiveRows();
     let emptyState =
-      <Text style={styles.emptyText}>No recommendations available.</Text>;
+      <Text style={[styles.emptyText, this.context.theme.emptyText]}>No recommendations available.</Text>;
 
     return (
       isEmpty ?
