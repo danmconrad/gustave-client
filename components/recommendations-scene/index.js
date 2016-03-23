@@ -63,7 +63,7 @@ export default class RecommendationsScene extends Component {
     if (wasShowingDetails)
       return this._scrollTo(this.state.current.get('top'), true, () =>
         this.setState({showDetails: this.state.showDetails.delete(recommendationID)}));
-    
+
     this.setState({showDetails: this.state.showDetails.add(recommendationID)});
   }
 
@@ -95,14 +95,14 @@ export default class RecommendationsScene extends Component {
       let top = this.state.current.get('top');
 
       if (Number(rowID) === this.getLastActiveRowIndex())
-        return this._scrollTo(top - this.state.viewportHeight, true, () => 
+        return this._scrollTo(top - this.state.viewportHeight, true, () =>
           this.removeRecommendation(recommendationID));
 
       this._scrollTo(top, false, () => {
         LayoutAnimation.easeInEaseOut();
         this.removeRecommendation(recommendationID);
       });
-    }); 
+    });
   }
 
   onSwipeStart(rowID) {
@@ -157,13 +157,13 @@ export default class RecommendationsScene extends Component {
     let shouldFill = !this.state.showDetails.has(recommendation.id);
 
     return (
-      <Swipeable 
+      <Swipeable
         style={shouldFill && {height: this.state.viewportHeight}}
         onLayout={this.onRowLayout.bind(this, rowID)}
         {...swipeableProps}>
-        <Card 
+        <Card
           style={shouldFill && styles.flexFull}>
-          <Recommendation 
+          <Recommendation
             style={shouldFill && styles.flexFull}
             recommendation={recommendation}
             showDetails={this.state.showDetails.has(recommendation.id)}
@@ -188,13 +188,13 @@ export default class RecommendationsScene extends Component {
 
   // Always fired
   onScroll(event) {
-    let scrollOffset = event.nativeEvent.contentOffset.y; 
+    let scrollOffset = event.nativeEvent.contentOffset.y;
     let lastEffectiveBottom = this.refs['recList'].scrollProperties.contentLength - this.state.viewportHeight;
 
     // Since this happens A LOT we don't set intermediate variables
-    if (scrollOffset < 0 || scrollOffset > lastEffectiveBottom 
-      || Number.isFinite(this._dragStart) 
-      || this.state.isRefreshing 
+    if (scrollOffset < 0 || scrollOffset > lastEffectiveBottom
+      || Number.isFinite(this._dragStart)
+      || this.state.isRefreshing
       || Number.isFinite(this._autoScrolling))
       return;
 
@@ -261,7 +261,7 @@ export default class RecommendationsScene extends Component {
   }
 
   _checkCurrent({scrollOffset, isScrollingDown = true, margin = 0}) {
-    let index = 0, top = 0, bottom = 0;
+    let index = 0, top = 0, bottom = 0, eBottom = 0;
 
     for (let i = 0, len = this.state.rowHeights.size; i < len; i++) {
       let height = this.state.rowHeights.get(i);
@@ -312,16 +312,16 @@ export default class RecommendationsScene extends Component {
     let scrollTarget;
 
     if (!didChange && isScrollingDown)
-      scrollTarget = eBottom;      
+      scrollTarget = eBottom;
 
     if (!didChange && !isScrollingDown)
-      scrollTarget = top; 
+      scrollTarget = top;
 
     if (didChange && isScrollingDown)
-      scrollTarget = top; 
+      scrollTarget = top;
 
     if (didChange && !isScrollingDown)
-      scrollTarget = eBottom; 
+      scrollTarget = eBottom;
 
     this._scrollTo(scrollTarget, true);
   }
@@ -342,7 +342,7 @@ export default class RecommendationsScene extends Component {
   }
 
   _setSwipeEdgeOffset(rowID) {
-    this._animations.get(rowID).get('offset').setValue(this.refs['recList'].scrollProperties.offset - this.state.current.get('top')); 
+    this._animations.get(rowID).get('offset').setValue(this.refs['recList'].scrollProperties.offset - this.state.current.get('top'));
   }
 
   /* React component lifecycle */
@@ -355,9 +355,9 @@ export default class RecommendationsScene extends Component {
     //TimerMixin
     this.setTimeout = TimerMixin.setTimeout.bind(this);
     this.clearTimeout = TimerMixin.clearTimeout.bind(this);
-    this.setInterval = TimerMixin.setInterval.bind(this); 
-    this.clearInterval = TimerMixin.clearInterval.bind(this); 
-    this.setImmediate = TimerMixin.setImmediate.bind(this); 
+    this.setInterval = TimerMixin.setInterval.bind(this);
+    this.clearInterval = TimerMixin.clearInterval.bind(this);
+    this.setImmediate = TimerMixin.setImmediate.bind(this);
     this.clearImmediate = TimerMixin.clearImmediate.bind(this);
   }
 
@@ -370,7 +370,7 @@ export default class RecommendationsScene extends Component {
       return;
 
     this.setState({
-      isRefreshing: false,       
+      isRefreshing: false,
       removedRecommendations: this.state.removedRecommendations.clear(),
       showDetails: this.state.showDetails.clear(),
     });
@@ -406,7 +406,7 @@ export default class RecommendationsScene extends Component {
         onScrollAnimationEnd={this.onScrollAnimationEnd.bind(this)}
         onMomentumScrollEnd={this.onScrollAnimationEnd.bind(this)}
         pageSize={1}
-        refreshControl={ 
+        refreshControl={
           <RefreshControl
             refreshing={this.state.isRefreshing}
             onRefresh={this.onRefresh.bind(this)}
